@@ -1,0 +1,247 @@
+.editorWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.line {
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Horizontal resizer (between left/middle/right columns) */
+.resizeHandleCol {
+  width: 10px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.resizeBarCol {
+  width: 1px;
+  height: 70%;
+  background: #000;
+  border-radius: 2px;
+}
+
+.resizeHandleCol:hover .resizeBarCol {
+  background: #111;
+}
+
+/* Chat history skeleton */
+.historySkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.historySkeletonItem {
+  min-height: 70px;
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.06) 100%
+  );
+  background-size: 200% 100%;
+  opacity: 0.6;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Custom scrollbars for panel lists */
+.scrollArea {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #000 transparent;
+}
+
+.scrollArea::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollArea::-webkit-scrollbar-thumb {
+  background: #000;
+  border-radius: 8px;
+}
+
+.scrollArea:hover::-webkit-scrollbar-thumb {
+  background: #111;
+}
+
+.scrollArea::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Compact spacing for rc-tree scoped to local container */
+.rcTree :global(.rc-tree) {
+  font-size: 12px;
+  line-height: 1.1;
+}
+.rcTree :global(.rc-tree .rc-tree-treenode) {
+  margin: 0;
+  padding: 2px 4px;
+}
+.rcTree :global(.rc-tree .rc-tree-node-content-wrapper) {
+  padding: 2px 4px;
+}
+.rcTree :global(.rc-tree .rc-tree-icon__customize) {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+/* Selected state color override */
+.rcTree :global(.rc-tree .rc-tree-node-selected) {
+  background: #fff1 !important;
+  border-radius: 6px;
+  border: 1px solid #fff1 !important;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rcTree :global(.rc-tree .rc-tree-switcher) {
+  display: none !important;
+
+} 
+
+/* Folder title container */
+.dirTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Dependency badge next to @openzeppelin */
+.depBadge {
+  display: inline-block;
+  font-size: 11px;
+  color: #fff5;
+  /* border: 1px solid #d0d7de; */
+  border-radius: 10px;
+  /* margin-left: 30px; */
+  padding: 0 6px;
+  line-height: 18px;
+  /* background: #f6f8fa34; */
+}
+
+/* Deploy panel anchored to bottom of editor */
+.deployPanel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  background: #0f0f0f;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Deploy panel as static section under editor */
+.deployPanelStatic {
+  height: 40%;
+  background: #0f0f0f;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.deployPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.deployPanelBody {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+
+.deployField {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.deployActions {
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Save status overlay positioned bottom-right of editor */
+.saveStatus {
+  position: absolute;
+  bottom: 10px;
+  right: 25px;
+  z-index: 1;
+}
+
+/* Vertical resizer (between editor and deploy form) */
+.resizeHandleRow {
+  height: 12px; /* larger hit area */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  background: transparent;
+}
+
+.resizeBarRow {
+  width: 100%;
+  height: 3px; /* thicker visual bar */
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+

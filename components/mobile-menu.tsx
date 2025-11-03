@@ -5,6 +5,10 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import dynamic from "next/dynamic";
+
+// Lazy-load wallet connect button to keep mobile menu light
+const WalletButton = dynamic(() => import("./tw-connect-button"), { ssr: false });
 
 interface MobileMenuProps {
   className?: string;
@@ -71,13 +75,7 @@ export const MobileMenu = ({ className }: MobileMenuProps) => {
             ))}
 
             <div className="mt-6">
-              <Link
-                href="/#sign-in"
-                onClick={handleLinkClick}
-                className="inline-block text-xl font-mono uppercase text-primary transition-colors ease-out duration-150 hover:text-primary/80 py-2"
-              >
-                Sign In
-              </Link>
+              <WalletButton />
             </div>
           </nav>
         </Dialog.Content>

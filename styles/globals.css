@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -75,8 +75,9 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Align with app-level font variable if this file is used */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-jetbrains-mono);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -122,4 +123,17 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+body {
+  font-family: jetbrains-mono, monospace !important;
+}
+
+#btn-cn .tw-connect-wallet {
+  border: 1px solid #fff1 !important;
+  background: #1f1f1f !important;
+  padding: 0.5rem 1rem !important;
+  height: 40px !important;
+  min-width: 150px !important;
+  font-family: jetbrains-mono, monospace !important;
 }
