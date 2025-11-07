@@ -9,7 +9,10 @@ import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { GoUpload, GoLink, GoArrowRight } from "react-icons/go";
+import { GoPackage, GoCreditCard } from "react-icons/go";
 import { useRouter } from "next/navigation";
+import { GoBook } from "react-icons/go";
+
 // Toasts disabled by request. Provide no-op API to avoid UI popups.
 const toast = {
   success: (..._args: any[]) => {},
@@ -35,6 +38,101 @@ export function Hero() {
   const [walletAddr, setWalletAddr] = useState<string | null>(null);
   const router = useRouter();
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Suggestion: Initialize fresh contract (concise prompt)
+  const initFreshPrompt =
+    "Initialize a fresh Solidity setup with two minimal contracts. Create exactly two .sol files with PascalCase names. Each file must include // SPDX-License-Identifier: MIT, pragma solidity ^0.8.20;, a top multi-line comment with purpose, next steps, and links to https://docs.soliditylang.org/ and http://third.codes/academy, and an empty contract <Name> {}. Do not add functions, variables, events, imports, inheritance, or modifiers.";
+
+  // Suggestion: Token Creation Smart Contract
+  const tokenCreationPrompt =
+    "Create an ERC20 token smart contract using ./@openZeppelin.";
+
+  // Suggestion: Crowdsale Funding Mechanism Contract
+  const crowdsalePrompt =
+    "Create a simple crowdsale funding contract. Accept ETH and sell an ERC20 token at a fixed rate; enforce start/end timestamps, soft cap and hard cap; owner can withdraw when goal reached; allow refunds if goal not met after end. Use MIT license, pragma ^0.8.20, ReentrancyGuard, and NatSpec. Return full file content.";
+
+  // Submit helper to send a specific prompt value immediately
+  const submitPromptWith = async (p: string) => {
+    if (loading || authLoading) return;
+    if (!walletAddr) {
+      toast.warning("Connect your wallet first", {
+        description: "Please connect MetaMask and try again.",
+      });
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setAnswer("");
+    setPrompt("Thinking…");
+    try {
+      const traceId = `ai-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      console.log(`[AI][${traceId}] init_click`, {
+        addr: walletAddr,
+        promptLen: (p || "").length,
+      });
+      const initRes = await fetch("/api/contract/init", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": walletAddr!,
+        },
+        body: JSON.stringify({
+          address: walletAddr,
+          question: p,
+        }),
+      });
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData?.contractId) {
+        setError(initData?.error || "Init failed");
+        return;
+      }
+      const cid = initData.contractId as string;
+      try {
+        const now = new Date().toISOString();
+        queryClient.setQueryData(
+          ["contract-list", walletAddr!],
+          (old: any[] | undefined) => {
+            const next = Array.isArray(old)
+              ? old.filter((x) => x?._id !== cid)
+              : [];
+            next.unshift({
+              _id: cid,
+              question: p,
+              code: "",
+              files: undefined,
+              createdAt: now,
+              updatedAt: now,
+            });
+            return next.slice(0, 100);
+          }
+        );
+      } catch {}
+      console.log(`[AI][${traceId}] navigate_immediate`, `/sol/${cid}`);
+      router.push(`/sol/${cid}`);
+      try {
+        fetch("/api/ai", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-wallet-address": walletAddr!,
+          },
+          body: JSON.stringify({
+            question: p,
+            address: walletAddr,
+            traceId,
+            contractId: cid,
+          }),
+        }).catch(() => {});
+      } catch {}
+    } catch (e) {
+      console.error(`[AI] client error`, e);
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submitPrompt = async () => {
     if (loading || authLoading) return;
@@ -236,7 +334,7 @@ export function Hero() {
         {/* Text editor: controlled, fixed size, no outline, no resize */}
         <div className="max-w-[900px] mx-auto relative">
           <textarea
-            className="w-full  font-mono max-w-[900px] bg-[#18181888] h-32 backdrop-blur-sm p-4 mt-4 border border-foreground/20 rounded-xl resize-none outline-none focus:outline-none focus:ring-0 focus:border-foreground/20 focus-visible:outline-none disabled:bg-[#18181855] disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full  font-mono max-w-[900px] bg-[#18181888] h-32 backdrop-blur-lg p-4 mt-4 border border-foreground/20 rounded-xl resize-none outline-none focus:outline-none focus:ring-0 focus:border-foreground/20 focus-visible:outline-none disabled:bg-[#18181855] disabled:opacity-70 disabled:cursor-not-allowed"
             spellCheck={false}
             data-gramm="false"
             data-gramm_editor="false"
@@ -274,7 +372,7 @@ export function Hero() {
           )} */}
 
           <button className="bg-[#ffffff0b] text-[#fff7]  font-mono text-xs  absolute left-4 bottom-5 backdrop-blur-sm py-1 px-3  rounded-full">
-           Auto Mode
+            Auto Mode
           </button>
 
           <input
@@ -288,6 +386,58 @@ export function Hero() {
               }
             }}
           />
+        </div>
+        {/* Suggestions below the text area */}
+        <div className="max-w-[900px] justify-center mx-auto mt-1 flex flex-wrap items-center gap-2">
+          <p className="text-xs text-gray-400">Suggestions:</p>
+
+          <button
+            className="px-3 cursor-pointer backdrop-blur-lg  flex items-center gap-2 py-[6px] rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-gray font-mono text-[11px] disabled:opacity-60"
+            disabled={loading || authLoading}
+            onClick={async () => {
+              try {
+                await (navigator.clipboard?.writeText?.(initFreshPrompt) ||
+                  Promise.resolve());
+              } catch {}
+              setPrompt(initFreshPrompt);
+              submitPromptWith(initFreshPrompt);
+            }}
+          >
+            <GoBook className="" />
+            Initialize fresh contract
+          </button>
+
+          <button
+            className="px-3 flex cursor-pointer backdrop-blur-lg  items-center gap-2 py-[6px] rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-gray font-mono text-[11px] disabled:opacity-60"
+            disabled={loading || authLoading}
+            onClick={async () => {
+              try {
+                await (navigator.clipboard?.writeText?.(tokenCreationPrompt) ||
+                  Promise.resolve());
+              } catch {}
+              setPrompt(tokenCreationPrompt);
+              submitPromptWith(tokenCreationPrompt);
+            }}
+          >
+            <GoPackage className="" />
+            Token Creation Smart Contract
+          </button>
+
+          <button
+            className="px-3 flex cursor-pointer backdrop-blur-lg items-center gap-2 py-[6px] rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-gray font-mono text-[11px] disabled:opacity-60"
+            disabled={loading || authLoading}
+            onClick={async () => {
+              try {
+                await (navigator.clipboard?.writeText?.(crowdsalePrompt) ||
+                  Promise.resolve());
+              } catch {}
+              setPrompt(crowdsalePrompt);
+              submitPromptWith(crowdsalePrompt);
+            }}
+          >
+            <GoCreditCard className="" />
+            Crowdsale Funding Mechanism Contract
+          </button>
         </div>
         {/* AI response area */}
         <div className="max-w-[900px] mx-auto text-left mt-4">

@@ -30,13 +30,50 @@ export default function ChatFloat() {
     return m?.[1] || null;
   }, [pathname]);
 
-  const walletAddress = useMemo(() => {
-    try {
-      const a = localStorage.getItem("walletAddress") || "";
-      return a || null;
-    } catch {
-      return null;
+  // Reactive walletAddress so queries re-run after navigation/connection
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  useEffect(() => {
+    const init = () => {
+      try {
+        const a =
+          (typeof window !== "undefined"
+            ? localStorage.getItem("walletAddress")
+            : null) || "";
+        setWalletAddress(a || null);
+      } catch {}
+    };
+    init();
+    const onConnected = (e: any) => {
+      const addr = e?.detail?.address || null;
+      setWalletAddress(addr);
+    };
+    const onDisconnected = () => {
+      setWalletAddress(null);
+    };
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === "walletAddress") init();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("wallet:connected", onConnected as EventListener);
+      window.addEventListener(
+        "wallet:disconnected",
+        onDisconnected as EventListener
+      );
+      window.addEventListener("storage", onStorage);
     }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(
+          "wallet:connected",
+          onConnected as EventListener
+        );
+        window.removeEventListener(
+          "wallet:disconnected",
+          onDisconnected as EventListener
+        );
+        window.removeEventListener("storage", onStorage);
+      }
+    };
   }, []);
 
   const { data: historyExpanded, isLoading: historyIsLoading } = useQuery<ChatItem[] | undefined>({
@@ -80,6 +117,11 @@ export default function ChatFloat() {
       setItems(historyExpanded);
     }
   }, [historyExpanded]);
+
+  // Clear items when switching contracts so history can hydrate for the new one
+  useEffect(() => {
+    setItems([]);
+  }, [contractId]);
 
   const send = async () => {
     if (!walletAddress) {
