@@ -17,9 +17,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Skal Ventures",
-  description: "Investment strategies that outperform the market",
-    generator: 'v0.app'
+  title: "Third Codes",
+  description: "Build and launch Web3 smart contracts with AI",
+  generator: "v0.app",
 };
 
 export default function RootLayout({

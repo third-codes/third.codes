@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
 
-const uri = process.env.MONGODB_URI || "mongodb://root:aj0zyCCsIRa7oz8Ppgab87Uh@fitz-roy.liara.cloud:32802/my-app?authSource=admin";
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  throw new Error("MONGODB_URI is not set. Please configure it in .env.local");
+}
 
 async function main() {
   try {

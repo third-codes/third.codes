@@ -4,12 +4,8 @@ import { User } from "@/models/User";
 import { Chat } from "@/models/Chat";
 import { Contract } from "@/models/Contract";
 
-const BASE_URL =
-  process.env.LIARA_BASE_URL ||
-  "https://ai.liara.ir/api/68474f97761c7d3b5f4bbad3/v1";
-const API_KEY =
-  process.env.LIARA_API_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJrZXkiOiI2OTAwZWVjYjhmMGEyYjVmMzEyMDVhNmIiLCJ0eXBlIjoiYWlfa2V5IiwiaWF0IjoxNzYxNjY4ODExfQ.ikVoaQAP-uGbOh6dP4RtEkXko6-WxInEcJ5ItEOjmSY";
+const BASE_URL = process.env.LIARA_BASE_URL;
+const API_KEY = process.env.LIARA_API_KEY;
 const MODEL_ID = process.env.LIARA_MODEL_ID || "anthropic/claude-sonnet-4";
 
 function isAddress(addr: unknown) {
@@ -58,6 +54,11 @@ export async function POST(req: Request) {
     );
 
     // No memory/history: keep messages minimal to reduce cost
+
+    if (!BASE_URL || !API_KEY) {
+      console.error("[AI] Missing LIARA_BASE_URL or LIARA_API_KEY env variables");
+      return NextResponse.json({ error: "AI service not configured" }, { status: 500 });
+    }
 
     console.time(`[AI][${tid}] llm_fetch`);
     const resp = await fetch(`${BASE_URL}/chat/completions`, {
