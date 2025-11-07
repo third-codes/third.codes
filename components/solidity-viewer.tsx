@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ethers } from "ethers";
 import styles from "./solidity-viewer.module.css";
@@ -20,14 +21,20 @@ import {
   GoCopy,
   GoArrowRight,
 } from "react-icons/go";
+import { HiOutlineFolderPlus, HiOutlinePencil } from "react-icons/hi2";
 import { toast } from "sonner";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const DiffEditor = dynamic(
+  () => import("@monaco-editor/react").then((m) => m.DiffEditor),
+  { ssr: false }
+);
 
 type SolFile = { name: string; content: string };
 
 type ContractDoc = {
   _id: string;
+  address?: string;
   question: string;
   code?: string;
   files?: SolFile[];
@@ -37,6 +44,13 @@ type ContractDoc = {
   deployedNetwork?: string;
   deployedOwner?: string;
   abi?: any[];
+};
+
+// Global message types for cross-component actions
+type PatchEvent = {
+  type: "contract-patch-ready" | "contract-files-updated";
+  contractId: string;
+  files: SolFile[];
 };
 
 // Helper to truncate long strings with a middle ellipsis, e.g. 0x1234...abcd
@@ -118,6 +132,7 @@ export default function SolidityViewer({
   deployedAddress,
   deployedNetwork,
   deployedOwner,
+  showHistory = true,
 }: {
   code: string;
   height?: string;
@@ -128,12 +143,16 @@ export default function SolidityViewer({
   deployedAddress?: string;
   deployedNetwork?: string;
   deployedOwner?: string;
+  showHistory?: boolean;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const pathname = usePathname();
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [walletAddr, setWalletAddr] = useState<string | null>(null);
+  // Diff overlay states
+  const [diffOpen, setDiffOpen] = useState<boolean>(false);
+  const [proposedFiles, setProposedFiles] = useState<SolFile[]>([]);
   const { data: history = [], isLoading: historyLoading } = useQuery<
     ContractDoc[]
   >({
@@ -156,6 +175,37 @@ export default function SolidityViewer({
   const [selectedContractId, setSelectedContractId] = useState<string | null>(
     null
   );
+  // Listen for patch events from chat to open diff overlay
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const msg = e?.data as PatchEvent | undefined;
+      if (!msg || typeof msg.type !== "string") return;
+      const m = (pathname || "").match(/^\/sol\/([a-fA-F0-9]{24})/);
+      const currentId = m?.[1] || selectedContractId || "";
+      if (!currentId || msg.contractId !== currentId) return;
+      const files = Array.isArray(msg.files) ? msg.files : [];
+      if (files.length === 0) return;
+      if (msg.type === "contract-patch-ready") {
+        setProposedFiles(files);
+        setDiffOpen(true);
+      } else if (msg.type === "contract-files-updated") {
+        setOverrideDoc((prev) => ({
+          _id: prev?._id || currentId,
+          question: prev?.question || prompt || "",
+          code: undefined,
+          files,
+          deployedAddress: prev?.deployedAddress,
+          deployedNetwork: prev?.deployedNetwork,
+          deployedOwner: prev?.deployedOwner,
+          abi: prev?.abi,
+        }));
+        setDiffOpen(false);
+        toast.success("Files updated");
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [pathname, selectedContractId]);
   // Show empty-state when nothing is selected
   const noSelection = !loading && !selectedContractId;
   const [overrideDoc, setOverrideDoc] = useState<ContractDoc | null>(null);
@@ -169,6 +219,8 @@ export default function SolidityViewer({
     "idle" | "success" | "error"
   >("idle");
   const [compileMessage, setCompileMessage] = useState<string | null>(null);
+  const [compileErrors, setCompileErrors] = useState<any[]>([]);
+  const [isFixing, setIsFixing] = useState<boolean>(false);
   const [compiledAbi, setCompiledAbi] = useState<any[] | null>(null);
   const [compiledBytecode, setCompiledBytecode] = useState<string | null>(null);
   const [compiledContractName, setCompiledContractName] = useState<
@@ -178,6 +230,198 @@ export default function SolidityViewer({
   const [deployOpen, setDeployOpen] = useState(false);
   const [functionsOpen, setFunctionsOpen] = useState(false);
   const [deployAccount, setDeployAccount] = useState<string>("");
+  // Typing preview state for the small SOL editor skeleton
+  const [typingText, setTypingText] = useState<string>("");
+  const typingRef = useRef<number | null>(null);
+  // User-provided DEX sample for typing preview
+  const fullExample = `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.17;\n\ninterface IERC20 {\n    function transfer(address to, uint256 value) external returns (bool);\n    function transferFrom(address from, address to, uint256 value) external returns (bool);\n    function balanceOf(address owner) external view returns (uint256);\n}\n\ncontract ThirdCodesDEX {\n    IERC20 public token0;\n    IERC20 public token1;\n    uint256 public reserve0;\n    uint256 public reserve1;\n    uint256 public totalLP;\n    mapping(address => uint256) public lpBalance;\n\n    uint256 private constant FEE_NUM = 997;\n    uint256 private constant FEE_DEN = 1000;\n    bool private locked;\n\n    modifier lock() {\n        require(!locked, \"LOCKED\");\n        locked = true;\n        _;\n        locked = false;\n    }\n\n    constructor(address _token0, address _token1) {\n        require(_token0 != _token1, \"same tokens\");\n        token0 = IERC20(_token0);\n        token1 = IERC20(_token1);\n    }\n\n    function addLiquidity(uint256 amt0, uint256 amt1) external lock returns (uint256 lp) {\n        require(amt0 > 0 && amt1 > 0, \"zero amount\");\n        token0.transferFrom(msg.sender, address(this), amt0);\n        token1.transferFrom(msg.sender, address(this), amt1);\n\n        if (totalLP == 0) {\n            lp = _sqrt(amt0 * amt1);\n        } else {\n            lp = _min((amt0 * totalLP) / reserve0, (amt1 * totalLP) / reserve1);\n        }\n        require(lp > 0, \"lp=0\");\n\n        lpBalance[msg.sender] += lp;\n        totalLP += lp;\n        _updateReserves();\n    }\n\n    function removeLiquidity(uint256 lp) external lock returns (uint256 amt0, uint256 amt1) {\n        require(lpBalance[msg.sender] >= lp, \"not enough LP\");\n        amt0 = (lp * reserve0) / totalLP;\n        amt1 = (lp * reserve1) / totalLP;\n\n        lpBalance[msg.sender] -= lp;\n        totalLP -= lp;\n        token0.transfer(msg.sender, amt0);\n        token1.transfer(msg.sender, amt1);\n        _updateReserves();\n    }\n\n    function swap(uint256 amountIn, address tokenIn, address to) external lock returns (uint256 amountOut) {\n        require(amountIn > 0, \"zero input\");\n        bool is0in = tokenIn == address(token0);\n        require(is0in || tokenIn == address(token1), \"invalid token\");\n\n        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);\n        uint256 amountInWithFee = (amountIn * FEE_NUM) / FEE_DEN;\n\n        (uint256 r0, uint256 r1) = (reserve0, reserve1);\n        if (is0in) {\n            amountOut = (amountInWithFee * r1) / (r0 + amountInWithFee);\n            token1.transfer(to, amountOut);\n        } else {\n            amountOut = (amountInWithFee * r0) / (r1 + amountInWithFee);\n            token0.transfer(to, amountOut);\n        }\n        _updateReserves();\n    }\n\n    function _updateReserves() internal {\n        reserve0 = token0.balanceOf(address(this));\n        reserve1 = token1.balanceOf(address(this));\n    }\n\n    function _sqrt(uint256 y) private pure returns (uint256 z) {\n        if (y > 3) {\n            z = y;\n            uint256 x = y / 2 + 1;\n            while (x < z) {\n                z = x;\n                x = (y / x + x) / 2;\n            }\n        } else if (y != 0) {\n            z = 1;\n        }\n    }\n\n    function _min(uint256 a, uint256 b) private pure returns (uint256) {\n        return a < b ? a : b;\n    }\n}\n// LODING...\n`;
+  // Start typing effect while loading (show preview code immediately)
+  useEffect(() => {
+    if (!loading) {
+      setTypingText("");
+      if (typingRef.current) {
+        window.clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+      return;
+    }
+    let i = 0;
+    if (typingRef.current) {
+      window.clearInterval(typingRef.current);
+    }
+    // Seed first character so code appears instantly
+    setTypingText(fullExample.slice(0, 1));
+    typingRef.current = window.setInterval(() => {
+      i += 1;
+      setTypingText(fullExample.slice(0, i));
+      if (i >= fullExample.length) {
+        if (typingRef.current) {
+          window.clearInterval(typingRef.current);
+          typingRef.current = null;
+        }
+      }
+    }, 25);
+    return () => {
+      if (typingRef.current) {
+        window.clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+    };
+  }, [loading]);
+  // Auto-scroll the 400px Monaco editor to the latest line when typingText grows
+  useEffect(() => {
+    try {
+      const editor: any = editorRef?.current;
+      const model = editor?.getModel?.();
+      if (!editor || !model) return;
+      const lastLine = model.getLineCount();
+      editor.revealLine(lastLine);
+    } catch {}
+  }, [typingText]);
+
+  // Register language and theme for Solidity highlighting in Monaco
+  const handleEditorWillMount = useCallback((monaco: any) => {
+    try {
+      monaco.languages.register({ id: "sol" });
+      monaco.languages.setMonarchTokensProvider("sol", {
+        defaultToken: "invalid",
+        tokenPostfix: ".sol",
+        keywords: [
+          "pragma",
+          "solidity",
+          "contract",
+          "library",
+          "interface",
+          "import",
+          "using",
+          "for",
+          "struct",
+          "enum",
+          "event",
+          "modifier",
+          "function",
+          "returns",
+          "return",
+          "abstract",
+          "override",
+          "virtual",
+          "constructor",
+          "receive",
+          "fallback",
+          "error",
+          "public",
+          "private",
+          "internal",
+          "external",
+          "view",
+          "pure",
+          "payable",
+          "calldata",
+          "memory",
+          "storage",
+        ],
+        typeKeywords: [
+          "address",
+          "bool",
+          "string",
+          "bytes",
+          "bytes1",
+          "bytes32",
+          "uint",
+          "uint8",
+          "uint16",
+          "uint32",
+          "uint64",
+          "uint128",
+          "uint256",
+          "int",
+          "int256",
+        ],
+        operators: [
+          "=",
+          "+",
+          "-",
+          "*",
+          "/",
+          "%",
+          "==",
+          "!=",
+          "<",
+          "<=",
+          ">",
+          ">=",
+          "&&",
+          "||",
+          "!",
+          "&",
+          "|",
+          "^",
+          "~",
+          "<<",
+          ">>",
+          "+=",
+          "-=",
+          "*=",
+          "/=",
+          "%=",
+          "++",
+          "--",
+        ],
+        symbols: /[=><!~?:&|+\-*\/\^%]+/,
+        escapes: /\\(?:[abfnrtv\\\"\'0-9xuv])/,
+        tokenizer: {
+          root: [
+            [/\/\/.*$/, "comment"],
+            [/\/\*.*?\*\//, "comment"],
+            [/\bpragma\b/, "keyword"],
+            [
+              /[a-zA-Z_$][\w$]*/,
+              {
+                cases: {
+                  "@keywords": "keyword",
+                  "@typeKeywords": "type",
+                  "@default": "identifier",
+                },
+              },
+            ],
+            { include: "@whitespace" },
+            [/[{}\[\]()]/, "delimiter"],
+            [
+              /(@symbols)/,
+              {
+                cases: {
+                  "@operators": "operator",
+                  "@default": "delimiter",
+                },
+              },
+            ],
+            [/\d+(_\d+)*/, "number"],
+            [/0x[0-9a-fA-F]+/, "number"],
+            [/\"([^\\\"]|\\.)*\"/, "string"],
+            [/\'([^\\\']|\\.)*\'/, "string"],
+          ],
+          whitespace: [[/[ \t\r\n]+/, "white"]],
+        },
+      });
+
+      monaco.editor.defineTheme("sol-dark", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [
+          { token: "comment", foreground: "75715E" },
+          { token: "keyword", foreground: "FFC700" },
+          { token: "type", foreground: "66D9EF" },
+          { token: "string", foreground: "A6E22E" },
+          { token: "number", foreground: "AE81FF" },
+          { token: "operator", foreground: "F8F8F2" },
+          { token: "identifier", foreground: "F8F8F2" },
+        ],
+        colors: {
+          "editor.background": "#0f0f0f",
+        },
+      });
+    } catch {}
+  }, []);
   const [customGas, setCustomGas] = useState<boolean>(false);
   const [gasLimit, setGasLimit] = useState<string>("");
   const [value, setValue] = useState<string>("0");
@@ -194,6 +438,7 @@ export default function SolidityViewer({
   // Monaco editor refs for inline error markers
   const monacoRef = useRef<any>(null);
   const modelRef = useRef<any>(null);
+  const editorRef = useRef<any>(null);
   // Functions runner state
   const [fnFilter, setFnFilter] = useState<string>("");
   const [fnOpenMap, setFnOpenMap] = useState<Record<string, boolean>>({});
@@ -687,6 +932,23 @@ export default function SolidityViewer({
     readBalance();
   }, [currentAccount, balanceSymbol]);
 
+  // Extra directories created by user (shown even without files)
+  const [extraDirs, setExtraDirs] = useState<string[]>([]);
+
+  // Inline create input state
+  const [inlineCreate, setInlineCreate] = useState<{
+    parentKey: string | null;
+    type: "folder" | "file" | null;
+    value: string;
+  }>({ parentKey: null, type: null, value: "" });
+
+  // Inline rename state
+  const [renameItem, setRenameItem] = useState<{
+    key: string | null;
+    type: "folder" | "file" | null;
+    value: string;
+  }>({ key: null, type: null, value: "" });
+
   const fileList: SolFile[] = useMemo(() => {
     const srcFiles = overrideDoc?.files ?? files;
     const srcCode = overrideDoc?.code ?? code;
@@ -696,6 +958,24 @@ export default function SolidityViewer({
     if (list.length > 0) return list;
     return [{ name: "[Contract].sol", content: srcCode }];
   }, [overrideDoc, files, code]);
+
+  // Inline diff state for active file selection (moved below fileList to avoid early reference)
+  const [diffActiveName, setDiffActiveName] = useState<string>("");
+  const diffFileNames = useMemo(() => {
+    const names = new Set<string>();
+    (Array.isArray(fileList) ? fileList : []).forEach((f: any) =>
+      names.add(f.name)
+    );
+    (Array.isArray(proposedFiles) ? proposedFiles : []).forEach((f: any) =>
+      names.add(f.name)
+    );
+    return Array.from(names);
+  }, [fileList, proposedFiles]);
+  useEffect(() => {
+    if (!diffOpen) return;
+    if (!diffActiveName && diffFileNames.length > 0)
+      setDiffActiveName(diffFileNames[0]);
+  }, [diffOpen, diffFileNames, diffActiveName]);
 
   // Hydrate selected contract details (including deployed info) on refresh/navigation
   useEffect(() => {
@@ -803,6 +1083,47 @@ export default function SolidityViewer({
     queryClient,
   ]);
 
+  // Save files immediately with an explicit snapshot to avoid stale closures
+  const saveFilesImmediate = useCallback(
+    async (nextFiles: SolFile[]) => {
+      try {
+        if (!selectedContractId || !walletAddr) return;
+        setIsSaving(true);
+        const res = await fetch(`/api/contract/${selectedContractId}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "x-wallet-address": walletAddr,
+          },
+          body: JSON.stringify({ files: nextFiles, code: "" }),
+        });
+        const data = await res.json();
+        if (!res.ok) return;
+        const updated = data?.contract as ContractDoc;
+        if (updated) {
+          setOverrideDoc((prev) => ({
+            _id: updated._id,
+            question: updated.question || prev?.question || prompt || "",
+            code: updated.code || prev?.code || code || "",
+            files: Array.isArray(updated.files) ? updated.files : nextFiles,
+            createdAt: updated.createdAt || prev?.createdAt,
+            updatedAt: updated.updatedAt || prev?.updatedAt,
+            deployedAddress: updated.deployedAddress || prev?.deployedAddress,
+            deployedNetwork: updated.deployedNetwork || prev?.deployedNetwork,
+            deployedOwner: updated.deployedOwner || prev?.deployedOwner,
+            abi: Array.isArray(updated.abi) ? updated.abi : prev?.abi,
+          }));
+        }
+      } catch {
+      } finally {
+        try {
+          setIsSaving(false);
+        } catch {}
+      }
+    },
+    [selectedContractId, walletAddr, prompt, code]
+  );
+
   // Autosave removed; saving occurs explicitly via button
 
   // No timer cleanup required since autosave is removed
@@ -909,6 +1230,7 @@ export default function SolidityViewer({
         setCompiledAbi(null);
         setCompiledBytecode(null);
         setCompiledContractName(null);
+        setCompileErrors(Array.isArray(data?.errors) ? data.errors : []);
         const hasMarkers =
           Array.isArray(data?.errors) && data.errors.length > 0;
         if (hasMarkers) {
@@ -950,6 +1272,9 @@ export default function SolidityViewer({
           }
           setCompileStatus("error");
           setCompileMessage(String(msg || "Compilation failed"));
+          setCompileErrors(
+            Array.isArray(data?.output?.errors) ? data.output.errors : []
+          );
           clearMarkers();
           toast.error("Compilation failed", {
             description: String(msg || selectedSolVersion),
@@ -969,6 +1294,7 @@ export default function SolidityViewer({
             }`
           : selectedSolVersion
       );
+      setCompileErrors([]);
       clearMarkers();
       // Store compiled artifacts (if provided)
       try {
@@ -998,6 +1324,7 @@ export default function SolidityViewer({
         : raw;
       setCompileStatus("error");
       setCompileMessage(sanitized);
+      setCompileErrors([]);
       setCompiledAbi(null);
       setCompiledBytecode(null);
       setCompiledContractName(null);
@@ -1456,35 +1783,42 @@ export default function SolidityViewer({
     selectable?: boolean;
   };
 
-  const { treeData, keyIndexMap, dirKeys, topLevelDirKeys, dirTitles } =
-    useMemo(() => {
-      const root: RcNode = { key: "root", title: "files", children: [] };
-      const dirMap: Record<string, RcNode> = { "": root };
-      const map: Record<string, number> = {};
-      const dirKeys: string[] = [];
-      const topLevelDirKeys: string[] = [];
-      const dirTitles: Record<string, string> = {};
-      (fileList || []).forEach((f, idx) => {
-        const parts = (f.name || "")
-          .replace(/^\/+/, "")
-          .split("/")
-          .filter(Boolean);
-        let parentPath = "";
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i];
-          const isLeaf = i === parts.length - 1;
-          const currentPath = parentPath ? `${parentPath}/${part}` : part;
-          const parentNode = dirMap[parentPath] || root;
-          if (isLeaf) {
-            const leafKey = `leaf-${idx}`;
-            parentNode.children = parentNode.children || [];
-            parentNode.children.push({
-              key: leafKey,
-              title: part,
-              isLeaf: true,
-              selectable: true,
-            });
-            map[leafKey] = idx;
+  const {
+    treeData,
+    keyIndexMap,
+    dirKeys,
+    topLevelDirKeys,
+    dirTitles,
+    dirPaths,
+  } = useMemo(() => {
+    const root: RcNode = { key: "root", title: "files", children: [] };
+    const dirMap: Record<string, RcNode> = { "": root };
+    const map: Record<string, number> = {};
+    const dirKeys: string[] = [];
+    const topLevelDirKeys: string[] = [];
+    const dirTitles: Record<string, string> = {};
+    const dirPaths: Record<string, string> = {};
+    (fileList || []).forEach((f, idx) => {
+      const parts = (f.name || "")
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter(Boolean);
+      let parentPath = "";
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const isLeaf = i === parts.length - 1;
+        const currentPath = parentPath ? `${parentPath}/${part}` : part;
+        const parentNode = dirMap[parentPath] || root;
+        if (isLeaf) {
+          const leafKey = `leaf-${idx}`;
+          parentNode.children = parentNode.children || [];
+          parentNode.children.push({
+            key: leafKey,
+            title: part,
+            isLeaf: true,
+            selectable: true,
+          });
+          map[leafKey] = idx;
         } else {
           if (!dirMap[currentPath]) {
             const dirKey = `dir-${currentPath}`;
@@ -1495,49 +1829,85 @@ export default function SolidityViewer({
               // Make folders selectable so we can toggle expand/collapse on label click
               selectable: true,
             };
-              parentNode.children = parentNode.children || [];
-              parentNode.children.push(node);
-              dirMap[currentPath] = node;
-              dirKeys.push(dirKey);
-              dirTitles[dirKey] = part;
-              // If parent is root, this is a top-level directory
-              if (parentNode.key === "root") {
+            parentNode.children = parentNode.children || [];
+            parentNode.children.push(node);
+            dirMap[currentPath] = node;
+            if (!dirKeys.includes(dirKey)) dirKeys.push(dirKey);
+            dirTitles[dirKey] = part;
+            dirPaths[dirKey] = currentPath;
+            // If parent is root, this is a top-level directory
+            if (parentNode.key === "root") {
+              if (!topLevelDirKeys.includes(dirKey))
                 topLevelDirKeys.push(dirKey);
-              }
             }
           }
-          parentPath = currentPath;
         }
+        parentPath = currentPath;
+      }
+    });
+
+    // Ensure extra directories are shown even if empty
+    (extraDirs || []).forEach((path) => {
+      const parts = String(path || "")
+        .replace(/^\/+/, "")
+        .split("/")
+        .filter(Boolean);
+      let parentPath = "";
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const currentPath = parentPath ? `${parentPath}/${part}` : part;
+        const parentNode = dirMap[parentPath] || root;
+        if (!dirMap[currentPath]) {
+          const dirKey = `dir-${currentPath}`;
+          const node: RcNode = {
+            key: dirKey,
+            title: part,
+            children: [],
+            selectable: true,
+          };
+          parentNode.children = parentNode.children || [];
+          parentNode.children.push(node);
+          dirMap[currentPath] = node;
+          if (!dirKeys.includes(dirKey)) dirKeys.push(dirKey);
+          dirTitles[dirKey] = part;
+          dirPaths[dirKey] = currentPath;
+          if (parentNode.key === "root") {
+            if (!topLevelDirKeys.includes(dirKey)) topLevelDirKeys.push(dirKey);
+          }
+        }
+        parentPath = currentPath;
+      }
+    });
+    // Sort children at each level: directories first, then files, alphabetically
+    const collator = new Intl.Collator(undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    const sortChildren = (children?: RcNode[]) => {
+      if (!children || children.length === 0) return;
+      children.sort((a, b) => {
+        const aIsDir = !!a.children && !a.isLeaf;
+        const bIsDir = !!b.children && !b.isLeaf;
+        if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+        const aTitle = String(a.title ?? "");
+        const bTitle = String(b.title ?? "");
+        return collator.compare(aTitle, bTitle);
       });
-      // Sort children at each level: directories first, then files, alphabetically
-      const collator = new Intl.Collator(undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-      const sortChildren = (children?: RcNode[]) => {
-        if (!children || children.length === 0) return;
-        children.sort((a, b) => {
-          const aIsDir = !!a.children && !a.isLeaf;
-          const bIsDir = !!b.children && !b.isLeaf;
-          if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
-          const aTitle = String(a.title ?? "");
-          const bTitle = String(b.title ?? "");
-          return collator.compare(aTitle, bTitle);
-        });
-      };
-      const sortDeep = (node: RcNode) => {
-        sortChildren(node.children);
-        (node.children || []).forEach(sortDeep);
-      };
-      sortDeep(root);
-      return {
-        treeData: root.children || [],
-        keyIndexMap: map,
-        dirKeys,
-        topLevelDirKeys,
-        dirTitles,
-      };
-    }, [fileList]);
+    };
+    const sortDeep = (node: RcNode) => {
+      sortChildren(node.children);
+      (node.children || []).forEach(sortDeep);
+    };
+    sortDeep(root);
+    return {
+      treeData: root.children || [],
+      keyIndexMap: map,
+      dirKeys,
+      topLevelDirKeys,
+      dirTitles,
+      dirPaths,
+    };
+  }, [fileList, extraDirs]);
 
   // Expanded folder keys (controlled)
   const [expandedDirKeys, setExpandedDirKeys] = useState<string[]>([]);
@@ -1610,9 +1980,102 @@ export default function SolidityViewer({
           "bytes",
           "uint",
           "int",
-          "bytes1","bytes2","bytes3","bytes4","bytes5","bytes6","bytes7","bytes8","bytes9","bytes10","bytes11","bytes12","bytes13","bytes14","bytes15","bytes16","bytes17","bytes18","bytes19","bytes20","bytes21","bytes22","bytes23","bytes24","bytes25","bytes26","bytes27","bytes28","bytes29","bytes30","bytes31","bytes32",
-          "uint8","uint16","uint24","uint32","uint40","uint48","uint56","uint64","uint72","uint80","uint88","uint96","uint104","uint112","uint120","uint128","uint136","uint144","uint152","uint160","uint168","uint176","uint184","uint192","uint200","uint208","uint216","uint224","uint232","uint240","uint248","uint256",
-          "int8","int16","int24","int32","int40","int48","int56","int64","int72","int80","int88","int96","int104","int112","int120","int128","int136","int144","int152","int160","int168","int176","int184","int192","int200","int208","int216","int224","int232","int240","int248","int256",
+          "bytes1",
+          "bytes2",
+          "bytes3",
+          "bytes4",
+          "bytes5",
+          "bytes6",
+          "bytes7",
+          "bytes8",
+          "bytes9",
+          "bytes10",
+          "bytes11",
+          "bytes12",
+          "bytes13",
+          "bytes14",
+          "bytes15",
+          "bytes16",
+          "bytes17",
+          "bytes18",
+          "bytes19",
+          "bytes20",
+          "bytes21",
+          "bytes22",
+          "bytes23",
+          "bytes24",
+          "bytes25",
+          "bytes26",
+          "bytes27",
+          "bytes28",
+          "bytes29",
+          "bytes30",
+          "bytes31",
+          "bytes32",
+          "uint8",
+          "uint16",
+          "uint24",
+          "uint32",
+          "uint40",
+          "uint48",
+          "uint56",
+          "uint64",
+          "uint72",
+          "uint80",
+          "uint88",
+          "uint96",
+          "uint104",
+          "uint112",
+          "uint120",
+          "uint128",
+          "uint136",
+          "uint144",
+          "uint152",
+          "uint160",
+          "uint168",
+          "uint176",
+          "uint184",
+          "uint192",
+          "uint200",
+          "uint208",
+          "uint216",
+          "uint224",
+          "uint232",
+          "uint240",
+          "uint248",
+          "uint256",
+          "int8",
+          "int16",
+          "int24",
+          "int32",
+          "int40",
+          "int48",
+          "int56",
+          "int64",
+          "int72",
+          "int80",
+          "int88",
+          "int96",
+          "int104",
+          "int112",
+          "int120",
+          "int128",
+          "int136",
+          "int144",
+          "int152",
+          "int160",
+          "int168",
+          "int176",
+          "int184",
+          "int192",
+          "int200",
+          "int208",
+          "int216",
+          "int224",
+          "int232",
+          "int240",
+          "int248",
+          "int256",
         ],
         operators: [
           "=",
@@ -1648,10 +2111,22 @@ export default function SolidityViewer({
           root: [
             [/\/\/.*$/, "comment"],
             [/\/*/, "comment", "@comment"],
-            [/[a-zA-Z_$][\w$]*/, { cases: { "@keywords": "keyword", "@typeKeywords": "type", "@default": "identifier" } }],
+            [
+              /[a-zA-Z_$][\w$]*/,
+              {
+                cases: {
+                  "@keywords": "keyword",
+                  "@typeKeywords": "type",
+                  "@default": "identifier",
+                },
+              },
+            ],
             { include: "@whitespace" },
             [/[{()}\[\]]/, "@brackets"],
-            [/(@symbols)/, { cases: { "@operators": "operator", "@default": "" } }],
+            [
+              /(@symbols)/,
+              { cases: { "@operators": "operator", "@default": "" } },
+            ],
             [/0[xX][0-9a-fA-F]+/, "number.hex"],
             [/\d+/, "number"],
             [/"([^"\\]|\\.)*$/, "string.invalid"],
@@ -1659,14 +2134,26 @@ export default function SolidityViewer({
             [/\'([^'\\]|\\.)*$/, "string.invalid"],
             [/\'/, "string", "@string"],
           ],
-          comment: [[/[^\/*]+/, "comment"], [/\*\//, "comment", "@pop"], [/[/\*]/, "comment"]],
+          comment: [
+            [/[^\/*]+/, "comment"],
+            [/\*\//, "comment", "@pop"],
+            [/[/\*]/, "comment"],
+          ],
           whitespace: [[/\s+/, "white"]],
-          string: [[/[^\\"]+/, "string"], [/\\./, "string.escape"], [/\"/, "string", "@pop"]],
+          string: [
+            [/[^\\"]+/, "string"],
+            [/\\./, "string.escape"],
+            [/\"/, "string", "@pop"],
+          ],
         },
       });
       monaco.languages.setLanguageConfiguration("solidity", {
         comments: { lineComment: "//", blockComment: ["/*", "*/"] },
-        brackets: [["{", "}"], ["[", "]"], ["(", ")"]],
+        brackets: [
+          ["{", "}"],
+          ["[", "]"],
+          ["(", ")"],
+        ],
         autoClosingPairs: [
           { open: "{", close: "}" },
           { open: "[", close: "]" },
@@ -1715,83 +2202,89 @@ export default function SolidityViewer({
       style={{ height: height ?? "100%", width: "calc(100svw - 48px)" }}
     >
       <PanelGroup direction="horizontal" className="w-full h-full">
-        <Panel minSize={10} defaultSize={15} className="h-full">
-          <div className="h-full bg-[#111] border-r border-foreground/10">
-            <div
-              className="px-3 py-2 flex items-center justify-between bg-[#fff1] mb-3 font-mono text-xs text-foreground/60  uppercase truncate"
-              title={prompt ?? "contracts"}
-            >
-              history
-              <button
-                className={`underline hover:opacity-70 cursor-pointer text-white rounded-md font-mono text-xs`}
-                onClick={() => {
-                  setSelectedContractId(null);
-                  setOverrideDoc(null);
-                  router.push("/");
-                }}
-                title={"Start a new chat"}
-              >
-                {"Let's Build"}
-              </button>
-            </div>
-            {historyLoading ? (
-              <div className={styles.historySkeleton}>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className={styles.historySkeletonItem} />
-                ))}
-              </div>
-            ) : (
-              <ul
-                className={`${styles.scrollArea} px-2 space-y-1 overflow-auto h-[calc(100%-32px)]`}
-              >
-                {/* Pinned first item: Let's Start */}
-                <li className="group relative flex items-center gap-2"></li>
-                {history.map((h) => (
-                  <li
-                    key={h._id}
-                    className="group relative flex items-center gap-2"
+        {showHistory && (
+          <>
+            <Panel minSize={10} defaultSize={15} className="h-full">
+              <div className="h-full bg-[#111] border-r border-foreground/10">
+                <div
+                  className="px-3 py-2 flex items-center justify-between bg-[#fff1] mb-3 font-mono text-xs text-foreground/60  uppercase truncate"
+                  title={prompt ?? "contracts"}
+                >
+                  history
+                  <button
+                    className={`underline hover:opacity-70 cursor-pointer text-white rounded-md font-mono text-xs`}
+                    onClick={() => {
+                      setSelectedContractId(null);
+                      setOverrideDoc(null);
+                      router.push("/");
+                    }}
+                    title={"Start a new chat"}
                   >
-                    <button
-                      className={`flex-1 text-left px-3 pr-9 py-2 rounded-md font-mono text-xs ${
-                        selectedContractId === h._id
-                          ? "bg-foreground/10 text-foreground"
-                          : "text-foreground/70 hover:bg-foreground/15"
-                      }`}
-                      onClick={() => {
-                        setSelectedContractId(h._id);
-                        setOverrideDoc(h);
-                        router.push(`/sol/${h._id}`);
-                      }}
-                      title={h.question}
-                    >
-                      {h.deployedAddress ? (
-                        <span className="mr-1 px-[3px] py-[1px] rounded-[4px] border border-emerald-400/40 text-emerald-400 bg-emerald-400/10 text-[10px] align-middle">
-                          Deployed
-                        </span>
-                      ) : null}
-                      {(() => {
-                        const words = (h.question || "").trim().split(/\s+/);
-                        const preview = words.slice(0, 6).join(" ");
-                        const tooLong = words.length > 6;
-                        return `${preview}${tooLong ? "..." : ""}`;
-                      })()}
-                    </button>
-                    <button
-                      className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 px-1 py-1 rounded-md font-mono text-[10px] text-red-400 hover:bg-red-400/10 transition-colors"
-                      onClick={() => handleDelete(h._id)}
-                      aria-label="Delete"
-                    >
-                      <GoTrash className="inline-block w-[14px] h-[14px]" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Panel>
-        <PanelResizeHandle className={styles.resizeHandleCol}>
-          <div className={styles.resizeBarCol} />
-        </PanelResizeHandle>
+                    {"Let's Build"}
+                  </button>
+                </div>
+                {historyLoading ? (
+                  <div className={styles.historySkeleton}>
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <div key={i} className={styles.historySkeletonItem} />
+                    ))}
+                  </div>
+                ) : (
+                  <ul
+                    className={`${styles.scrollArea} px-2 space-y-1 overflow-auto h-[calc(100%-32px)]`}
+                  >
+                    {/* Pinned first item: Let's Start */}
+                    <li className="group relative flex items-center gap-2"></li>
+                    {history.map((h) => (
+                      <li
+                        key={h._id}
+                        className="group relative flex items-center gap-2"
+                      >
+                        <Link
+                          href={`/sol/${h._id}`}
+                          className={`flex-1 text-left px-3 pr-9 py-2 rounded-md font-mono text-xs ${
+                            selectedContractId === h._id
+                              ? "bg-foreground/10 text-foreground"
+                              : "text-foreground/70 hover:bg-foreground/15"
+                          }`}
+                          onClick={() => {
+                            setSelectedContractId(h._id);
+                            setOverrideDoc(h);
+                          }}
+                          title={h.question}
+                        >
+                          {h.deployedAddress ? (
+                            <span className="mr-1 px-[3px] py-[1px] rounded-[4px] border border-emerald-400/40 text-emerald-400 bg-emerald-400/10 text-[10px] align-middle">
+                              Deployed
+                            </span>
+                          ) : null}
+                          {(() => {
+                            const words = (h.question || "")
+                              .trim()
+                              .split(/\s+/);
+                            const preview = words.slice(0, 6).join(" ");
+                            const tooLong = words.length > 6;
+                            return `${preview}${tooLong ? "..." : ""}`;
+                          })()}
+                        </Link>
+                        <button
+                          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 px-1 py-1 rounded-md font-mono text-[10px] text-red-400 hover:bg-red-400/10 transition-colors"
+                          onClick={() => handleDelete(h._id)}
+                          aria-label="Delete"
+                        >
+                          <GoTrash className="inline-block w-[14px] h-[14px]" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Panel>
+            <PanelResizeHandle className={styles.resizeHandleCol}>
+              <div className={styles.resizeBarCol} />
+            </PanelResizeHandle>
+          </>
+        )}
         <Panel minSize={10} defaultSize={20} className="h-full">
           <div
             className={`${styles.scrollArea} h-full overflow-auto border-r border-foreground/10 bg-[#0f0f0f]`}
@@ -1840,6 +2333,670 @@ export default function SolidityViewer({
                       }
                     } catch {}
                   }
+                }}
+                titleRender={(nodeData: any) => {
+                  const isLeaf = !!nodeData?.isLeaf;
+                  const key = String(nodeData?.key || "");
+                  // Folder title render
+                  if (
+                    !isLeaf &&
+                    typeof key === "string" &&
+                    key.startsWith("dir-")
+                  ) {
+                    const isCreatingHere = inlineCreate.parentKey === key;
+                    const isRenamingHere =
+                      renameItem.key === key && renameItem.type === "folder";
+                    const currentTitle = String(nodeData?.title ?? "");
+                    return (
+                      <div className="group inline-flex items-center gap-1">
+                        {!isRenamingHere ? (
+                          <span>{currentTitle}</span>
+                        ) : (
+                          <input
+                            value={renameItem.value}
+                            onChange={(e) =>
+                              setRenameItem((prev) => ({
+                                ...prev,
+                                value: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.stopPropagation();
+                                const basePath = dirPaths[key] || "";
+                                const parentPath = basePath
+                                  .split("/")
+                                  .slice(0, -1)
+                                  .join("/");
+                                const newLeaf = renameItem.value.trim();
+                                if (!newLeaf) return;
+                                const newPath = parentPath
+                                  ? `${parentPath}/${newLeaf}`
+                                  : newLeaf;
+                                // Update extraDirs (including nested ones)
+                                setExtraDirs((prev) => {
+                                  const updated = (prev || []).map((d) =>
+                                    d === basePath
+                                      ? newPath
+                                      : d.startsWith(basePath + "/")
+                                      ? newPath + d.slice(basePath.length)
+                                      : d
+                                  );
+                                  // Ensure uniqueness
+                                  return Array.from(new Set(updated));
+                                });
+                                // Update files path prefixes
+                                setOverrideDoc((prev) => {
+                                  const prevFiles =
+                                    prev?.files ?? fileList ?? [];
+                                  const nextFiles = prevFiles.map((f) => {
+                                    if (
+                                      (f.name || "").startsWith(basePath + "/")
+                                    ) {
+                                      const suffix = f.name.slice(
+                                        basePath.length
+                                      );
+                                      return { ...f, name: newPath + suffix };
+                                    }
+                                    return f;
+                                  });
+                                  // Persist renamed folder paths immediately
+                                  saveFilesImmediate(nextFiles);
+                                  const nextDoc: ContractDoc = {
+                                    _id: prev?._id ?? "",
+                                    question:
+                                      prev?.question ??
+                                      overrideDoc?.question ??
+                                      prompt ??
+                                      "",
+                                    code: prev?.code ?? code ?? "",
+                                    files: nextFiles,
+                                    createdAt: prev?.createdAt,
+                                    updatedAt: prev?.updatedAt,
+                                    deployedAddress: prev?.deployedAddress,
+                                    deployedNetwork: prev?.deployedNetwork,
+                                    deployedOwner: prev?.deployedOwner,
+                                    abi: prev?.abi,
+                                  };
+                                  return nextDoc;
+                                });
+                                // Keep expanded state on the renamed folder
+                                setExpandedDirKeys((prev) =>
+                                  prev.map((k) =>
+                                    k === key ? `dir-${newPath}` : k
+                                  )
+                                );
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                              } else if (e.key === "Escape") {
+                                e.stopPropagation();
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              e.stopPropagation();
+                              // Commit folder rename on blur if valid
+                              const basePath = dirPaths[key] || "";
+                              const parentPath = basePath
+                                .split("/")
+                                .slice(0, -1)
+                                .join("/");
+                              const newLeaf = renameItem.value.trim();
+                              if (!newLeaf) {
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                                return;
+                              }
+                              const newPath = parentPath
+                                ? `${parentPath}/${newLeaf}`
+                                : newLeaf;
+                              setExtraDirs((prev) => {
+                                const updated = (prev || []).map((d) =>
+                                  d === basePath
+                                    ? newPath
+                                    : d.startsWith(basePath + "/")
+                                    ? newPath + d.slice(basePath.length)
+                                    : d
+                                );
+                                return Array.from(new Set(updated));
+                              });
+                              setOverrideDoc((prev) => {
+                                const prevFiles = prev?.files ?? fileList ?? [];
+                                const nextFiles = prevFiles.map((f) => {
+                                  if (
+                                    (f.name || "").startsWith(basePath + "/")
+                                  ) {
+                                    const suffix = f.name.slice(
+                                      basePath.length
+                                    );
+                                    return { ...f, name: newPath + suffix };
+                                  }
+                                  return f;
+                                });
+                                // Persist immediately
+                                saveFilesImmediate(nextFiles);
+                                const nextDoc: ContractDoc = {
+                                  _id: prev?._id ?? "",
+                                  question:
+                                    prev?.question ??
+                                    overrideDoc?.question ??
+                                    prompt ??
+                                    "",
+                                  code: prev?.code ?? code ?? "",
+                                  files: nextFiles,
+                                  createdAt: prev?.createdAt,
+                                  updatedAt: prev?.updatedAt,
+                                  deployedAddress: prev?.deployedAddress,
+                                  deployedNetwork: prev?.deployedNetwork,
+                                  deployedOwner: prev?.deployedOwner,
+                                  abi: prev?.abi,
+                                };
+                                return nextDoc;
+                              });
+                              setExpandedDirKeys((prev) =>
+                                prev.map((k) =>
+                                  k === key ? `dir-${newPath}` : k
+                                )
+                              );
+                              setRenameItem({
+                                key: null,
+                                type: null,
+                                value: "",
+                              });
+                            }}
+                            className="ml-2 bg-transparent border-none outline-none focus:outline-none px-1 text-white placeholder-foreground/40"
+                            placeholder="Folder name"
+                            autoFocus
+                          />
+                        )}
+                        {isCreatingHere ? (
+                          <span className="inline-flex ml-2">
+                            <input
+                              value={inlineCreate.value}
+                              onChange={(e) =>
+                                setInlineCreate((prev) => ({
+                                  ...prev,
+                                  value: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.stopPropagation();
+                                  const name = inlineCreate.value.trim();
+                                  if (!name) return;
+                                  const basePath = dirPaths[key] || "";
+                                  if (inlineCreate.type === "folder") {
+                                    const newDir = basePath
+                                      ? `${basePath}/${name}`
+                                      : name;
+                                    setExtraDirs((prev) =>
+                                      prev.includes(newDir)
+                                        ? prev
+                                        : [...prev, newDir]
+                                    );
+                                    // Persist folder creation via hidden placeholder file
+                                    setOverrideDoc((prev) => {
+                                      const prevFiles =
+                                        prev?.files ?? fileList ?? [];
+                                      const placeholder = {
+                                        name: `${newDir}/.keep`,
+                                        content: "// folder placeholder",
+                                      };
+                                      const nextFiles = prevFiles.some(
+                                        (f) => f.name === placeholder.name
+                                      )
+                                        ? prevFiles
+                                        : [...prevFiles, placeholder];
+                                      // Persist immediately
+                                      saveFilesImmediate(nextFiles);
+                                      const nextDoc: ContractDoc = {
+                                        _id: prev?._id ?? "",
+                                        question:
+                                          prev?.question ??
+                                          overrideDoc?.question ??
+                                          prompt ??
+                                          "",
+                                        code: prev?.code ?? code ?? "",
+                                        files: nextFiles,
+                                        createdAt: prev?.createdAt,
+                                        updatedAt: prev?.updatedAt,
+                                        deployedAddress: prev?.deployedAddress,
+                                        deployedNetwork: prev?.deployedNetwork,
+                                        deployedOwner: prev?.deployedOwner,
+                                        abi: prev?.abi,
+                                      };
+                                      return nextDoc;
+                                    });
+                                  } else if (inlineCreate.type === "file") {
+                                    const targetPath = basePath
+                                      ? `${basePath}/${name}`
+                                      : name;
+                                    const finalName = targetPath.endsWith(
+                                      ".sol"
+                                    )
+                                      ? targetPath
+                                      : `${targetPath}.sol`;
+                                    setOverrideDoc((prev) => {
+                                      const prevFiles =
+                                        prev?.files ?? fileList ?? [];
+                                      const exists = prevFiles.some(
+                                        (f) => f.name === finalName
+                                      );
+                                      const nextFiles = exists
+                                        ? prevFiles
+                                        : [
+                                            ...prevFiles,
+                                            {
+                                              name: finalName,
+                                              content:
+                                                "pragma solidity ^0.8.20;\n// new file",
+                                            },
+                                          ];
+                                      if (!exists)
+                                        saveFilesImmediate(nextFiles);
+                                      const nextDoc: ContractDoc = {
+                                        _id: prev?._id ?? "",
+                                        question:
+                                          prev?.question ??
+                                          overrideDoc?.question ??
+                                          prompt ??
+                                          "",
+                                        code: prev?.code ?? code ?? "",
+                                        files: nextFiles,
+                                        createdAt: prev?.createdAt,
+                                        updatedAt: prev?.updatedAt,
+                                        deployedAddress: prev?.deployedAddress,
+                                        deployedNetwork: prev?.deployedNetwork,
+                                        deployedOwner: prev?.deployedOwner,
+                                        abi: prev?.abi,
+                                      };
+                                      return nextDoc;
+                                    });
+                                  }
+                                  setInlineCreate({
+                                    parentKey: null,
+                                    type: null,
+                                    value: "",
+                                  });
+                                } else if (e.key === "Escape") {
+                                  e.stopPropagation();
+                                  setInlineCreate({
+                                    parentKey: null,
+                                    type: null,
+                                    value: "",
+                                  });
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={(e) => {
+                                e.stopPropagation();
+                                const name = inlineCreate.value.trim();
+                                if (!name) {
+                                  setInlineCreate({
+                                    parentKey: null,
+                                    type: null,
+                                    value: "",
+                                  });
+                                  return;
+                                }
+                                const basePath = dirPaths[key] || "";
+                                if (inlineCreate.type === "folder") {
+                                  const newDir = basePath
+                                    ? `${basePath}/${name}`
+                                    : name;
+                                  setExtraDirs((prev) =>
+                                    prev.includes(newDir)
+                                      ? prev
+                                      : [...prev, newDir]
+                                  );
+                                  // Persist folder via placeholder
+                                  setOverrideDoc((prev) => {
+                                    const prevFiles =
+                                      prev?.files ?? fileList ?? [];
+                                    const placeholder = {
+                                      name: `${newDir}/.keep`,
+                                      content: "// folder placeholder",
+                                    };
+                                    const nextFiles = prevFiles.some(
+                                      (f) => f.name === placeholder.name
+                                    )
+                                      ? prevFiles
+                                      : [...prevFiles, placeholder];
+                                    saveFilesImmediate(nextFiles);
+                                    const nextDoc: ContractDoc = {
+                                      _id: prev?._id ?? "",
+                                      question:
+                                        prev?.question ??
+                                        overrideDoc?.question ??
+                                        prompt ??
+                                        "",
+                                      code: prev?.code ?? code ?? "",
+                                      files: nextFiles,
+                                      createdAt: prev?.createdAt,
+                                      updatedAt: prev?.updatedAt,
+                                      deployedAddress: prev?.deployedAddress,
+                                      deployedNetwork: prev?.deployedNetwork,
+                                      deployedOwner: prev?.deployedOwner,
+                                      abi: prev?.abi,
+                                    };
+                                    return nextDoc;
+                                  });
+                                } else if (inlineCreate.type === "file") {
+                                  const targetPath = basePath
+                                    ? `${basePath}/${name}`
+                                    : name;
+                                  const finalName = targetPath.endsWith(".sol")
+                                    ? targetPath
+                                    : `${targetPath}.sol`;
+                                  setOverrideDoc((prev) => {
+                                    const prevFiles =
+                                      prev?.files ?? fileList ?? [];
+                                    const exists = prevFiles.some(
+                                      (f) => f.name === finalName
+                                    );
+                                    const nextFiles = exists
+                                      ? prevFiles
+                                      : [
+                                          ...prevFiles,
+                                          {
+                                            name: finalName,
+                                            content:
+                                              "pragma solidity ^0.8.20;\n// new file",
+                                          },
+                                        ];
+                                    if (!exists) saveFilesImmediate(nextFiles);
+                                    const nextDoc: ContractDoc = {
+                                      _id: prev?._id ?? "",
+                                      question:
+                                        prev?.question ??
+                                        overrideDoc?.question ??
+                                        prompt ??
+                                        "",
+                                      code: prev?.code ?? code ?? "",
+                                      files: nextFiles,
+                                      createdAt: prev?.createdAt,
+                                      updatedAt: prev?.updatedAt,
+                                      deployedAddress: prev?.deployedAddress,
+                                      deployedNetwork: prev?.deployedNetwork,
+                                      deployedOwner: prev?.deployedOwner,
+                                      abi: prev?.abi,
+                                    };
+                                    return nextDoc;
+                                  });
+                                }
+                                setInlineCreate({
+                                  parentKey: null,
+                                  type: null,
+                                  value: "",
+                                });
+                              }}
+                              className="bg-transparent border-none outline-none focus:outline-none px-1 text-white placeholder-foreground/40"
+                              placeholder={
+                                inlineCreate.type === "folder"
+                                  ? "Folder name"
+                                  : "File name"
+                              }
+                              autoFocus
+                            />
+                          </span>
+                        ) : (
+                          <span className="opacity-0 group-hover:opacity-100 inline-flex gap-1 ml-2 transition-opacity transition-transform duration-200 ease-out -translate-y-1 group-hover:translate-y-0">
+                            <button
+                              className="w-[20px] h-[20px] p-0 flex items-center justify-center rounded hover:bg-foreground/10 text-foreground/60"
+                              aria-label="Add folder"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInlineCreate({
+                                  parentKey: key,
+                                  type: "folder",
+                                  value: "",
+                                });
+                                setExpandedDirKeys((prev) =>
+                                  prev.includes(key) ? prev : [...prev, key]
+                                );
+                              }}
+                            >
+                              <HiOutlineFolderPlus className="inline-block w-[12px] h-[12px]" />
+                            </button>
+                            <button
+                              className="w-[20px] h-[20px] p-0 flex items-center justify-center rounded hover:bg-foreground/10 text-foreground/60"
+                              aria-label="Add file"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInlineCreate({
+                                  parentKey: key,
+                                  type: "file",
+                                  value: "",
+                                });
+                                setExpandedDirKeys((prev) =>
+                                  prev.includes(key) ? prev : [...prev, key]
+                                );
+                              }}
+                            >
+                              <GoFileCode className="inline-block w-[12px] h-[12px]" />
+                            </button>
+                            <button
+                              className="w-[20px] h-[20px] p-0 flex items-center justify-center rounded hover:bg-foreground/10 text-foreground/60"
+                              aria-label="Rename folder"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const currentTitle = String(
+                                  nodeData?.title ?? ""
+                                );
+                                setRenameItem({
+                                  key,
+                                  type: "folder",
+                                  value: currentTitle,
+                                });
+                              }}
+                            >
+                              <HiOutlinePencil className="inline-block w-[12px] h-[12px]" />
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  // File title render
+                  if (
+                    isLeaf &&
+                    typeof key === "string" &&
+                    key.startsWith("leaf-")
+                  ) {
+                    const idx = keyIndexMap[key];
+                    const currentName =
+                      idx != null && idx >= 0 ? fileList[idx]?.name || "" : "";
+                    const baseTitle = String(nodeData?.title ?? "");
+                    const isRenamingHere =
+                      renameItem.key === key && renameItem.type === "file";
+                    return (
+                      <div className="group inline-flex items-center gap-1">
+                        {!isRenamingHere ? (
+                          <span>{baseTitle}</span>
+                        ) : (
+                          <input
+                            value={renameItem.value}
+                            onChange={(e) =>
+                              setRenameItem((prev) => ({
+                                ...prev,
+                                value: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.stopPropagation();
+                                const typed = renameItem.value.trim();
+                                if (!typed || typeof idx !== "number") return;
+                                const oldFull = currentName;
+                                const parts = oldFull.split("/");
+                                const oldBase = parts[parts.length - 1];
+                                const parent = parts.slice(0, -1).join("/");
+                                const hasDot = /\./.test(typed);
+                                const ext = (() => {
+                                  const i = oldBase.lastIndexOf(".");
+                                  return i >= 0 ? oldBase.slice(i + 1) : "";
+                                })();
+                                const newBase =
+                                  hasDot || !ext ? typed : `${typed}.${ext}`;
+                                const newFull = parent
+                                  ? `${parent}/${newBase}`
+                                  : newBase;
+                                // Avoid duplicate names
+                                const nameExists = (fileList || []).some(
+                                  (f, i) => i !== idx && f.name === newFull
+                                );
+                                if (nameExists) {
+                                  try {
+                                    toast.error("Name already exists");
+                                  } catch {}
+                                  return;
+                                }
+                                setOverrideDoc((prev) => {
+                                  const prevFiles =
+                                    prev?.files ?? fileList ?? [];
+                                  const nextFiles = prevFiles.map((f, i) =>
+                                    i === idx ? { ...f, name: newFull } : f
+                                  );
+                                  // Persist file rename immediately
+                                  saveFilesImmediate(nextFiles);
+                                  const nextDoc: ContractDoc = {
+                                    _id: prev?._id ?? "",
+                                    question:
+                                      prev?.question ??
+                                      overrideDoc?.question ??
+                                      prompt ??
+                                      "",
+                                    code: prev?.code ?? code ?? "",
+                                    files: nextFiles,
+                                    createdAt: prev?.createdAt,
+                                    updatedAt: prev?.updatedAt,
+                                    deployedAddress: prev?.deployedAddress,
+                                    deployedNetwork: prev?.deployedNetwork,
+                                    deployedOwner: prev?.deployedOwner,
+                                    abi: prev?.abi,
+                                  };
+                                  return nextDoc;
+                                });
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                              } else if (e.key === "Escape") {
+                                e.stopPropagation();
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => {
+                              e.stopPropagation();
+                              const typed = renameItem.value.trim();
+                              if (!typed || typeof idx !== "number") {
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                                return;
+                              }
+                              const oldFull = currentName;
+                              const parts = oldFull.split("/");
+                              const oldBase = parts[parts.length - 1];
+                              const parent = parts.slice(0, -1).join("/");
+                              const hasDot = /\./.test(typed);
+                              const ext = (() => {
+                                const i = oldBase.lastIndexOf(".");
+                                return i >= 0 ? oldBase.slice(i + 1) : "";
+                              })();
+                              const newBase =
+                                hasDot || !ext ? typed : `${typed}.${ext}`;
+                              const newFull = parent
+                                ? `${parent}/${newBase}`
+                                : newBase;
+                              const nameExists = (fileList || []).some(
+                                (f, i) => i !== idx && f.name === newFull
+                              );
+                              if (nameExists) {
+                                try {
+                                  toast.error("Name already exists");
+                                } catch {}
+                                setRenameItem({
+                                  key: null,
+                                  type: null,
+                                  value: "",
+                                });
+                                return;
+                              }
+                              setOverrideDoc((prev) => {
+                                const prevFiles = prev?.files ?? fileList ?? [];
+                                const nextFiles = prevFiles.map((f, i) =>
+                                  i === idx ? { ...f, name: newFull } : f
+                                );
+                                saveFilesImmediate(nextFiles);
+                                const nextDoc: ContractDoc = {
+                                  _id: prev?._id ?? "",
+                                  question:
+                                    prev?.question ??
+                                    overrideDoc?.question ??
+                                    prompt ??
+                                    "",
+                                  code: prev?.code ?? code ?? "",
+                                  files: nextFiles,
+                                  createdAt: prev?.createdAt,
+                                  updatedAt: prev?.updatedAt,
+                                  deployedAddress: prev?.deployedAddress,
+                                  deployedNetwork: prev?.deployedNetwork,
+                                  deployedOwner: prev?.deployedOwner,
+                                  abi: prev?.abi,
+                                };
+                                return nextDoc;
+                              });
+                              setRenameItem({
+                                key: null,
+                                type: null,
+                                value: "",
+                              });
+                            }}
+                            className="ml-2 bg-transparent border-none outline-none focus:outline-none px-1 text-white placeholder-foreground/40"
+                            placeholder="File name"
+                            autoFocus
+                          />
+                        )}
+                        <span className="opacity-0 group-hover:opacity-100 inline-flex gap-1 ml-2 transition-opacity transition-transform duration-200 ease-out -translate-y-1 group-hover:translate-y-0">
+                          <button
+                            className="w-[20px] h-[20px] p-0 flex items-center justify-center rounded hover:bg-foreground/10 text-foreground/60"
+                            aria-label="Rename file"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRenameItem({
+                                key,
+                                type: "file",
+                                value: baseTitle,
+                              });
+                            }}
+                          >
+                            <HiOutlinePencil className="inline-block w-[12px] h-[12px]" />
+                          </button>
+                        </span>
+                      </div>
+                    );
+                  }
+                  return String(nodeData?.title ?? "");
                 }}
                 icon={({ isLeaf, expanded }: any) =>
                   isLeaf ? (
@@ -1977,13 +3134,6 @@ export default function SolidityViewer({
                 </div>
               </div>
             ) : null}
-            <div
-              className="px-3 border-t border-foreground/10 py-2 font-mono text-xs text-foreground/60"
-              title={overrideDoc?.question ?? prompt ?? "contracts"}
-            >
-              <span className="text-emerald-400 mr-2">prompt:</span>
-              {overrideDoc?.question ?? prompt ?? "contracts"}
-            </div>
           </div>
         </Panel>
         <PanelResizeHandle className={styles.resizeHandleCol}>
@@ -2094,6 +3244,98 @@ export default function SolidityViewer({
                 )}
               </div>
             </div>
+            {compileStatus === "error" && compileMessage ? (
+              <div className="mt-2 bg-red-500/15 border border-red-500/30 text-red-300 rounded-md p-2 font-mono text-xs">
+                <div
+                  style={{ alignItems: "end" }}
+                  className="flex justify-between gap-2"
+                >
+                  <div className="flex-1 whitespace-pre-wrap">
+                    {compileMessage}
+                  </div>
+                  <button
+                    disabled={isFixing}
+                    className="shrink-0 bg-white hover:bg-[#fff9] disabled:opacity-60 disabled:cursor-not-allowed text-black px-4 min-w-9 py-[4px] rounded-md"
+                    onClick={async () => {
+                      try {
+                        if (!walletAddr) {
+                          toast.error("Wallet not connected");
+                          return;
+                        }
+                        setIsFixing(true);
+                        // Clear error UI immediately when starting Fix
+                        setCompileStatus("idle");
+                        setCompileMessage(null);
+                        setCompileErrors([]);
+                        clearMarkers();
+                        const current = fileList[activeIndex] || {
+                          name: "[Contract].sol",
+                          content: code,
+                        };
+                        toast.info("AI fixing…", {
+                          description: selectedSolVersion,
+                        });
+                        const res = await fetch("/api/fix", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "x-wallet-address": walletAddr,
+                          },
+                          body: JSON.stringify({
+                            address: walletAddr,
+                            contractId: selectedContractId,
+                            version: selectedSolVersion,
+                            fileName: current.name,
+                            source: current.content,
+                            files: fileList,
+                            error: compileMessage,
+                            errors: compileErrors,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          toast.error(String(data?.error || "Fix failed"));
+                          return;
+                        }
+                        const outFiles = Array.isArray(data?.files)
+                          ? data.files
+                          : [];
+                        if (outFiles.length > 0) {
+                          setOverrideDoc((prev) => ({
+                            _id:
+                              data?.contractId ||
+                              prev?._id ||
+                              selectedContractId ||
+                              "",
+                            question:
+                              prev?.question ||
+                              overrideDoc?.question ||
+                              prompt ||
+                              "",
+                            code: undefined,
+                            files: outFiles,
+                            deployedAddress: prev?.deployedAddress,
+                            deployedNetwork: prev?.deployedNetwork,
+                            deployedOwner: prev?.deployedOwner,
+                          }));
+                        }
+                        toast.success("Code fixed. Recompiling…", {
+                          description: selectedSolVersion,
+                        });
+                        await handleCompile();
+                      } catch (e) {
+                        console.error(e);
+                        toast.error("Error calling fix API");
+                      } finally {
+                        setIsFixing(false);
+                      }
+                    }}
+                  >
+                    {isFixing ? "Fixing…" : "Fix"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="flex-1 min-h-0">
               {!(deployOpen || functionsOpen) ? (
                 <Editor
@@ -2102,7 +3344,7 @@ export default function SolidityViewer({
                   theme="solidity-dark"
                   value={fileList[activeIndex]?.content ?? code}
                   onChange={(val) => {
-                    if (overrideDoc?.deployedAddress) {
+                    if (overrideDoc?.deployedAddress || isFixing) {
                       // Prevent edits once deployed
                       return;
                     }
@@ -2425,7 +3667,7 @@ export default function SolidityViewer({
                     });
                   }}
                   options={{
-                    readOnly: !!overrideDoc?.deployedAddress,
+                    readOnly: isFixing || !!overrideDoc?.deployedAddress,
                     minimap: { enabled: false },
                     fontLigatures: true,
                     fontSize: 13,
@@ -2440,6 +3682,9 @@ export default function SolidityViewer({
                       theme="solidity-dark"
                       value={fileList[activeIndex]?.content ?? code}
                       onChange={(val) => {
+                        if (isFixing || overrideDoc?.deployedAddress) {
+                          return;
+                        }
                         const nextContent = val || "";
                         setOverrideDoc((prev) => {
                           const next: ContractDoc = {
@@ -2656,7 +3901,7 @@ export default function SolidityViewer({
                         });
                       }}
                       options={{
-                        readOnly: !!overrideDoc?.deployedAddress,
+                        readOnly: isFixing || !!overrideDoc?.deployedAddress,
                         minimap: { enabled: false },
                         fontLigatures: true,
                         fontSize: 13,
@@ -3168,17 +4413,53 @@ export default function SolidityViewer({
               )}
             </div>
             {loading && (
-              <div style={{ paddingTop: 40 }} className={styles.overlay}>
-                {Array.from({ length: skeletonLines }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={styles.line}
-                    style={{
-                      width: `${skeletonWidths[i] ?? 60}%`,
-                      opacity: i % 7 === 0 ? 0.85 : 1,
+              <div id="loading" className={styles.overlay}>
+                <div
+                  className="rounded-md opacity-35 grayscale-100 overflow-hidden"
+                  style={{ width: 400 }}
+                >
+                  <span className="font-mono px-4 italic text-xs">
+                    // Loading...
+                  </span>
+                  <Editor
+                    height="400px"
+                    width="450px"
+                    theme="sol-dark"
+                    language="sol"
+                    value={typingText}
+                    beforeMount={handleEditorWillMount}
+                    onMount={(editor, monaco) => {
+                      try {
+                        monacoRef.current = monaco;
+                        try {
+                          modelRef.current = editor.getModel();
+                        } catch {}
+                        editorRef.current = editor;
+                      } catch {}
+                    }}
+                    options={{
+                      readOnly: true,
+                      minimap: { enabled: false },
+                      lineNumbers: "off",
+                      glyphMargin: false,
+                      lineDecorationsWidth: 0,
+                      automaticLayout: true,
+                      contextmenu: false,
+                      selectionHighlight: false,
+                      renderLineHighlight: "none",
+                      scrollbar: {
+                        vertical: "hidden",
+                        horizontal: "hidden",
+                        useShadows: false,
+                      },
+                      fontSize: 12,
+                      scrollBeyondLastLine: false,
+                      smoothScrolling: true,
+                      renderWhitespace: "none",
+                      wordWrap: "on",
                     }}
                   />
-                ))}
+                </div>
               </div>
             )}
             {noSelection && (
@@ -3194,6 +4475,130 @@ export default function SolidityViewer({
             >
               {isSaving ? "Saving…" : isDirty ? "Unsaved" : "Saved"}
             </span>
+            {/* Inline diff section inside main viewer */}
+            {diffOpen && (
+              <div className="mt-2 rounded-md border border-foreground/20 bg-[#0b0b0b] h-[380px] flex flex-col overflow-hidden">
+                <div className="px-3 py-2 border-b border-foreground/10 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="bg-black border border-foreground/20 rounded-md px-2 py-1 font-mono text-[11px] text-white"
+                      value={diffActiveName}
+                      onChange={(e) => setDiffActiveName(e.target.value)}
+                    >
+                      {diffFileNames.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="px-3 py-[6px] rounded-md bg-emerald-400 hover:bg-emerald-500 text-black font-mono text-[11px]"
+                      onClick={async () => {
+                        try {
+                          const m = (pathname || "").match(
+                            /^\/sol\/([a-fA-F0-9]{24})/
+                          );
+                          const cid = selectedContractId || m?.[1] || "";
+                          const addr =
+                            walletAddr ||
+                            (typeof window !== "undefined"
+                              ? localStorage.getItem("walletAddress")
+                              : null);
+                          if (!cid || !addr) {
+                            toast.error("Cannot save changes", {
+                              description:
+                                "Missing contract ID or wallet address",
+                            });
+                            return;
+                          }
+                          const current = Array.isArray(fileList)
+                            ? fileList
+                            : [];
+                          const map = new Map<string, any>(
+                            current.map((f: any) => [f.name, { ...f }])
+                          );
+                          for (const pf of Array.isArray(proposedFiles)
+                            ? proposedFiles
+                            : []) {
+                            map.set(pf.name, {
+                              name: pf.name,
+                              content: pf.content,
+                            });
+                          }
+                          const merged = Array.from(map.values());
+                          const r = await fetch(`/api/contract/${cid}`, {
+                            method: "PATCH",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "x-wallet-address": addr!,
+                            },
+                            body: JSON.stringify({ files: merged, code: "" }),
+                          });
+                          if (!r.ok) {
+                            const t = await r.text();
+                            toast.error("Save failed", { description: t });
+                            return;
+                          }
+                          setOverrideDoc((prev) => ({
+                            _id: prev?._id || cid,
+                            question: prev?.question || prompt || "",
+                            code: undefined,
+                            files: merged,
+                            deployedAddress: prev?.deployedAddress,
+                            deployedNetwork: prev?.deployedNetwork,
+                            deployedOwner: prev?.deployedOwner,
+                            abi: prev?.abi,
+                          }));
+                          setDiffOpen(false);
+                          toast.success("Changes applied and saved");
+                        } catch (e: any) {
+                          toast.error("Apply changes error", {
+                            description: e?.message || String(e),
+                          });
+                        }
+                      }}
+                    >
+                      Apply All
+                    </button>
+                    <button
+                      className="px-3 py-[6px] rounded-md bg-foreground/20 hover:bg-foreground/30 text-white font-mono text-[11px]"
+                      onClick={() => setDiffOpen(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                  <DiffEditor
+                    original={
+                      (Array.isArray(fileList) ? fileList : []).find(
+                        (f: any) => f.name === diffActiveName
+                      )?.content || ""
+                    }
+                    modified={
+                      (Array.isArray(proposedFiles) ? proposedFiles : []).find(
+                        (f: any) => f.name === diffActiveName
+                      )?.content || ""
+                    }
+                    language="solidity"
+                    theme="solidity-dark"
+                    height="100%"
+                    options={{
+                      readOnly: true,
+                      renderSideBySide: false,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      automaticLayout: true,
+                      scrollbar: {
+                        vertical: "hidden",
+                        horizontal: "hidden",
+                        useShadows: false,
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </Panel>
       </PanelGroup>

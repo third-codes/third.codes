@@ -131,6 +131,8 @@ export async function POST(req: Request) {
         question,
         answer,
         model: model || MODEL_ID,
+        contractId:
+          typeof incomingContractId === "string" ? incomingContractId : undefined,
       });
       console.log(`[AI][${tid}] chat_saved`);
     } catch (e) {

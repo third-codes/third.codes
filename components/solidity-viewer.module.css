@@ -11,12 +11,28 @@
   inset: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(2px);
+  background: #0f0f0f88;
+  backdrop-filter: blur(6px);
+  /* pointer-events: none; */
+  z-index: 22;
+}
+
+/* Hide Monaco gutter (margin) within the overlay container */
+.overlay :global(.monaco-editor .margin) {
+  display: none;
+}
+
+/* Make overlay preview editor view-only (no selection/click/copy) */
+.overlay :global(.monaco-editor),
+.overlay :global(.monaco-editor .view-lines) {
+  user-select: none;
+}
+.overlay :global(.monaco-editor) {
   pointer-events: none;
-  z-index: 10;
 }
 
 .line {
@@ -142,8 +158,7 @@
 
 .rcTree :global(.rc-tree .rc-tree-switcher) {
   display: none !important;
-
-} 
+}
 
 /* Folder title container */
 .dirTitle {
@@ -244,4 +259,3 @@
   background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
 }
-

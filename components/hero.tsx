@@ -272,42 +272,11 @@ export function Hero() {
               Wallet not connected. Connect MetaMask to submit.
             </div>
           )} */}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button className="bg-[#fff1] hover:bg-[#fff2] cursor-pointer absolute left-4 bottom-5 backdrop-blur-sm p-1 rounded-md">
-                <Plus className="text-[22px] text-[#fff9]" />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content
-              side="bottom"
-              align="start"
-              sideOffset={4}
-              avoidCollisions={false}
-              className="min-w-[220px] rounded-md border border-foreground/15 bg-[#111]/90 backdrop-blur-md p-1 shadow-lg z-[60]"
-            >
-              <DropdownMenu.Item
-                className="px-3 py-2 flex items-center gap-2 text-left text-sm font-mono text-foreground/90 hover:bg-foreground/10 rounded cursor-pointer focus:outline-none"
-                onSelect={(e) => {
-                  e.preventDefault();
-                  fileInputRef.current?.click();
-                }}
-              >
-                <GoUpload />
-                Upload from computer
-              </DropdownMenu.Item>
-              <DropdownMenu.Item
-                className="px-3 py-2 flex items-center gap-2 text-left text-sm font-mono text-foreground/90 hover:bg-foreground/10 rounded cursor-pointer focus:outline-none"
-                onSelect={(e) => {
-                  e.preventDefault();
-                  // Placeholder: hook up smart contract connect flow here
-                  console.log("connect to smart contract");
-                }}
-              >
-                <GoLink />
-                Connect to smart contract
-              </DropdownMenu.Item>
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
+
+          <button className="bg-[#ffffff0b] text-[#fff7]  font-mono text-xs  absolute left-4 bottom-5 backdrop-blur-sm py-1 px-3  rounded-full">
+           Auto Mode
+          </button>
+
           <input
             ref={fileInputRef}
             type="file"

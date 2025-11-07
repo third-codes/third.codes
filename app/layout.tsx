@@ -6,6 +6,7 @@ import "rc-tree/assets/index.css";
 import { Header } from "@/components/header";
 import QueryProvider from "@/components/query-provider";
 import { Toaster } from "sonner";
+import ChatFloat from "@/components/chat-float";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -35,6 +36,7 @@ export default function RootLayout({
         <Header />
         <QueryProvider>
           {children}
+          <ChatFloat />
         </QueryProvider>
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>

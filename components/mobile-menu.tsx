@@ -33,7 +33,7 @@ export const MobileMenu = ({ className }: MobileMenuProps) => {
       <Dialog.Trigger asChild>
         <button
           className={cn(
-            "group lg:hidden p-2 text-foreground transition-colors",
+            "group lg:hidden p-2 text-foreground transition-colors outline-none focus:outline-none",
             className
           )}
           aria-label="Open menu"
@@ -68,7 +68,7 @@ export const MobileMenu = ({ className }: MobileMenuProps) => {
                 key={item.name}
                 href={item.href}
                 onClick={handleLinkClick}
-                className="text-xl font-mono uppercase text-foreground/60 transition-colors ease-out duration-150 hover:text-foreground/100 py-2"
+                className="text-xl font-mono uppercase text-foreground/60 transition-colors ease-out duration-150 hover:text-foreground/100 py-2 outline-none focus:outline-none"
               >
                 {item.name}
               </Link>
