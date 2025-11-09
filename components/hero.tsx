@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Pill } from "./pill";
 import { Button } from "./ui/button";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { Plus } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -27,7 +26,7 @@ const LazyGL = dynamic(
 );
 
 export function Hero() {
-  const queryClient = useQueryClient();
+  // react-query removed; no cache updates
   const [hovering, setHovering] = useState(false);
   const [allowGL, setAllowGL] = useState(true);
   const [prompt, setPrompt] = useState("");
@@ -89,26 +88,7 @@ export function Hero() {
         return;
       }
       const cid = initData.contractId as string;
-      try {
-        const now = new Date().toISOString();
-        queryClient.setQueryData(
-          ["contract-list", walletAddr!],
-          (old: any[] | undefined) => {
-            const next = Array.isArray(old)
-              ? old.filter((x) => x?._id !== cid)
-              : [];
-            next.unshift({
-              _id: cid,
-              question: p,
-              code: "",
-              files: undefined,
-              createdAt: now,
-              updatedAt: now,
-            });
-            return next.slice(0, 100);
-          }
-        );
-      } catch {}
+      // No cache mutation; viewer will fetch history directly
       console.log(`[AI][${traceId}] navigate_immediate`, `/sol/${cid}`);
       router.push(`/sol/${cid}`);
       try {
@@ -174,26 +154,7 @@ export function Hero() {
       }
       const cid = initData.contractId as string;
       // Optimistically update chat history so the new prompt appears and is active on the next page
-      try {
-        const now = new Date().toISOString();
-        queryClient.setQueryData(
-          ["contract-list", walletAddr!],
-          (old: any[] | undefined) => {
-            const next = Array.isArray(old)
-              ? old.filter((x) => x?._id !== cid)
-              : [];
-            next.unshift({
-              _id: cid,
-              question: prompt,
-              code: "",
-              files: undefined,
-              createdAt: now,
-              updatedAt: now,
-            });
-            return next.slice(0, 100);
-          }
-        );
-      } catch {}
+      // No cache mutation; viewer will fetch history directly
       console.log(`[AI][${traceId}] navigate_immediate`, `/sol/${cid}`);
       router.push(`/sol/${cid}`);
       // Fire AI build in background without blocking navigation

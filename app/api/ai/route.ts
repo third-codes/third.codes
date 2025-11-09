@@ -146,6 +146,8 @@ export async function POST(req: Request) {
     let contractId: string | undefined =
       typeof incomingContractId === "string" ? incomingContractId : undefined;
     const files: { name: string; content: string }[] = [];
+    // Track whether we have updated/created the contract with any content
+    let contentPersisted = false;
 
     // Prefer fenced blocks labelled 'solidity'
     const fenceSolidity = /```\s*solidity[^\n]*\n([\s\S]*?)```/g;
@@ -209,6 +211,7 @@ export async function POST(req: Request) {
           model: model || MODEL_ID,
         });
         console.log(`[AI][${tid}] contract_updated_files`, contractId);
+        contentPersisted = true;
       } else {
         const created = await Contract.create({
           address,
@@ -220,6 +223,7 @@ export async function POST(req: Request) {
         });
         contractId = created._id.toString();
         console.log(`[AI][${tid}] contract_created_files`, contractId);
+        contentPersisted = true;
       }
     } else if (isRefusal) {
       // Non-contract prompt: create error.sol with a clear comment in the editor
@@ -245,6 +249,7 @@ export async function POST(req: Request) {
           model: model || MODEL_ID,
         });
         console.log(`[AI][${tid}] contract_updated_error_file`, contractId);
+        contentPersisted = true;
       } else {
         const created = await Contract.create({
           address,
@@ -256,6 +261,7 @@ export async function POST(req: Request) {
         });
         contractId = created._id.toString();
         console.log(`[AI][${tid}] contract_created_error_file`, contractId);
+        contentPersisted = true;
       }
     } else {
       // single-block fallback
@@ -275,6 +281,7 @@ export async function POST(req: Request) {
             model: model || MODEL_ID,
           });
           console.log(`[AI][${tid}] contract_updated_single`, contractId);
+          contentPersisted = true;
         } else {
           const created = await Contract.create({
             address,
@@ -285,6 +292,7 @@ export async function POST(req: Request) {
           });
           contractId = created._id.toString();
           console.log(`[AI][${tid}] contract_created_single`, contractId);
+          contentPersisted = true;
         }
       }
       // no-fence fallback: attempt to extract Solidity from raw answer
@@ -313,6 +321,7 @@ export async function POST(req: Request) {
             });
             contractId = incomingContractId;
             console.log(`[AI][${tid}] contract_updated_nofence`, contractId);
+            contentPersisted = true;
           } else {
             const created = await Contract.create({
               address,
@@ -323,6 +332,7 @@ export async function POST(req: Request) {
             });
             contractId = created._id.toString();
             console.log(`[AI][${tid}] contract_created_nofence`, contractId);
+            contentPersisted = true;
           }
         }
       }
@@ -354,6 +364,7 @@ export async function POST(req: Request) {
             `[AI][${tid}] contract_updated_stub_error_file`,
             contractId
           );
+          contentPersisted = true;
         } else {
           const created = await Contract.create({
             address,
@@ -368,8 +379,37 @@ export async function POST(req: Request) {
             `[AI][${tid}] contract_created_stub_error_file`,
             contractId
           );
+          contentPersisted = true;
         }
       }
+    }
+
+    // Ensure we always persist some content for the active contract id
+    // This covers the case where an incoming contractId is provided but
+    // the AI output did not include any recognizable Solidity code or refusal.
+    if (!contentPersisted && incomingContractId) {
+      const stubFiles = [
+        {
+          name: "error.sol",
+          content: [
+            "// No Solidity files were detected in the AI response.",
+            "// Please ask for a Solidity smart contract. Use fenced",
+            "// blocks marked with 'solidity' and include a filename comment:",
+            "//   // filename: contracts/MyContract.sol",
+          ].join("\n"),
+        },
+      ];
+      await Contract.findByIdAndUpdate(incomingContractId, {
+        address,
+        question,
+        answer,
+        files: stubFiles,
+        code: "",
+        model: model || MODEL_ID,
+      });
+      contractId = incomingContractId;
+      contentPersisted = true;
+      console.log(`[AI][${tid}] contract_updated_stub_fallback`, contractId);
     }
 
     console.log(`[AI][${tid}] done`, { contractId });

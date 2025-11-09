@@ -28,9 +28,14 @@ export default function ContractLive({ initial }: { initial: ContractDoc }) {
     const interval = setInterval(async () => {
       if (stopped) return;
       try {
-        const addr = (typeof window !== "undefined" ? localStorage.getItem("walletAddress") : null) || "";
+        const addr =
+          (typeof window !== "undefined"
+            ? localStorage.getItem("walletAddress")
+            : null) || "";
+        // Always provide a header: fall back to the initial contract owner address
+        const ownerAddr = addr && addr.length > 0 ? addr : initial.address;
         const res = await fetch(`/api/contract/${initial._id}`, {
-          headers: addr ? { "x-wallet-address": addr } : undefined,
+          headers: { "x-wallet-address": ownerAddr },
         });
         if (!res.ok) return;
         const data = await res.json();

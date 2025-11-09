@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+// react-query removed to avoid cache-related issues in chat/history
 import { ethers } from "ethers";
 import styles from "./solidity-viewer.module.css";
 import { GoFileCode } from "react-icons/go";
@@ -146,32 +146,47 @@ export default function SolidityViewer({
   showHistory?: boolean;
 }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
+  // Local-only history management (no react-query)
   const pathname = usePathname();
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [walletAddr, setWalletAddr] = useState<string | null>(null);
   // Diff overlay states
   const [diffOpen, setDiffOpen] = useState<boolean>(false);
   const [proposedFiles, setProposedFiles] = useState<SolFile[]>([]);
-  const { data: history = [], isLoading: historyLoading } = useQuery<
-    ContractDoc[]
-  >({
-    queryKey: ["contract-list", walletAddr || ""],
-    enabled: !!walletAddr,
-    queryFn: async () => {
-      if (!walletAddr) return [];
-      const r = await fetch(`/api/contract/list?address=${walletAddr}`, {
-        headers: { "x-wallet-address": walletAddr },
-      });
-      if (!r.ok) return [];
-      const d = await r.json();
-      const items: ContractDoc[] = Array.isArray(d?.contracts)
-        ? d.contracts
-        : [];
-      return items;
-    },
-    staleTime: 2 * 60 * 1000,
-  });
+  const [history, setHistory] = useState<ContractDoc[]>([]);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        if (!walletAddr) {
+          setHistory([]);
+          return;
+        }
+        setHistoryLoading(true);
+        const r = await fetch(`/api/contract/list?address=${walletAddr}`, {
+          headers: { "x-wallet-address": walletAddr },
+        });
+        if (!r.ok) {
+          setHistory([]);
+          return;
+        }
+        const d = await r.json();
+        const items: ContractDoc[] = Array.isArray(d?.contracts)
+          ? d.contracts
+          : [];
+        if (!cancelled) setHistory(items);
+      } catch {
+        if (!cancelled) setHistory([]);
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [walletAddr]);
   const [selectedContractId, setSelectedContractId] = useState<string | null>(
     null
   );
@@ -719,9 +734,8 @@ export default function SolidityViewer({
     const onDisconnected = () => {
       setWalletConnected(false);
       setWalletAddr(null);
-      try {
-        queryClient.removeQueries({ queryKey: ["contract-list"] });
-      } catch {}
+      // Clear local history when disconnected
+      setHistory([]);
     };
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === "walletConnected" || ev.key === "walletAddress") {
@@ -749,7 +763,7 @@ export default function SolidityViewer({
         window.removeEventListener("storage", onStorage);
       }
     };
-  }, [queryClient]);
+  }, []);
 
   // Restore active chat history selection from URL (/sol/:id) on refresh/navigation
   useEffect(() => {
@@ -1046,25 +1060,22 @@ export default function SolidityViewer({
           };
           return next;
         });
-        // Update cached history list and move updated item to top
-        queryClient.setQueryData<ContractDoc[]>(
-          ["contract-list", walletAddr || ""],
-          (old) => {
-            const arr = Array.isArray(old) ? old : [];
-            const filtered = arr.filter((x) => x._id !== updated._id);
-            return [
-              {
-                _id: updated._id,
-                question: updated.question,
-                code: updated.code || "",
-                files: updated.files,
-                createdAt: updated.createdAt,
-                updatedAt: updated.updatedAt,
-              },
-              ...filtered,
-            ];
-          }
-        );
+        // Update local history ordering to reflect latest save
+        setHistory((prev) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          const filtered = arr.filter((x) => x._id !== updated._id);
+          return [
+            {
+              _id: updated._id,
+              question: updated.question,
+              code: updated.code || "",
+              files: updated.files,
+              createdAt: updated.createdAt,
+              updatedAt: updated.updatedAt,
+            },
+            ...filtered,
+          ];
+        });
         setIsDirty(false);
         // No save toast; rely on status overlay
       }
@@ -1080,7 +1091,6 @@ export default function SolidityViewer({
     fileList,
     overrideDoc,
     code,
-    queryClient,
   ]);
 
   // Save files immediately with an explicit snapshot to avoid stale closures
@@ -1184,13 +1194,8 @@ export default function SolidityViewer({
           headers: { "x-wallet-address": addr },
         });
         if (!resp.ok) return;
-        // Update cached history list
-        queryClient.setQueryData<ContractDoc[]>(
-          ["contract-list", addr || ""],
-          (old) => {
-            return (old || []).filter((x) => x._id !== id);
-          }
-        );
+        // Update local history list
+        setHistory((old) => (old || []).filter((x) => x._id !== id));
         // If deleting currently viewed, navigate accordingly
         const isCurrent = selectedContractId === id;
         const nextHistory = (history || []).filter((x) => x._id !== id);
@@ -1203,7 +1208,7 @@ export default function SolidityViewer({
         }
       } catch {}
     },
-    [history, selectedContractId, router, queryClient]
+    [history, selectedContractId, router]
   );
 
   const handleCompile = useCallback(async (): Promise<boolean> => {

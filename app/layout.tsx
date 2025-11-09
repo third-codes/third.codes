@@ -4,7 +4,6 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "rc-tree/assets/index.css";
 import { Header } from "@/components/header";
-import QueryProvider from "@/components/query-provider";
 import { Toaster } from "sonner";
 import ChatFloat from "@/components/chat-float";
 
@@ -48,10 +47,8 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Header />
-        <QueryProvider>
-          {children}
-          <ChatFloat />
-        </QueryProvider>
+        {children}
+        <ChatFloat />
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>
     </html>

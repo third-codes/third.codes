@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Bot, ArrowRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useQuery } from "@tanstack/react-query";
 
 type ChatItem = {
   _id: string;
@@ -23,6 +22,7 @@ export default function ChatFloat() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState("");
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
 
   const contractId = useMemo(() => {
     const p = pathname || "";
@@ -76,47 +76,48 @@ export default function ChatFloat() {
     };
   }, []);
 
-  const { data: historyExpanded, isLoading: historyIsLoading } = useQuery<ChatItem[] | undefined>({
-    queryKey: ["chat-history", walletAddress?.toLowerCase(), contractId],
-    enabled: !!walletAddress && !!contractId,
-    staleTime: 5 * 60 * 1000,
-    refetchOnMount: false,
-    queryFn: async () => {
-      const r = await fetch(`/api/chat/history?address=${walletAddress}&contractId=${contractId}`, {
-        method: "GET",
-        headers: { "x-wallet-address": walletAddress! },
-      });
-      if (!r.ok) throw new Error(await r.text());
-      const data = await r.json();
-      const list = Array.isArray(data?.chats) ? data.chats : [];
-      const expanded: ChatItem[] = list.flatMap((c: any) => [
-        {
-          _id: `${c._id}-q`,
-          address: c.address,
-          contractId: c.contractId,
-          question: c.question,
-          answer: "",
-          createdAt: c.createdAt,
-        },
-        {
-          _id: `${c._id}-a`,
-          address: c.address,
-          contractId: c.contractId,
-          question: c.question,
-          answer: c.answer,
-          createdAt: c.createdAt,
-        },
-      ]);
-      return expanded;
-    },
-  });
-
-  // Initialize items from cached history once per contract
+  // Fetch chat history without react-query to avoid cache issues
   useEffect(() => {
-    if (historyExpanded && historyExpanded.length > 0 && items.length === 0) {
-      setItems(historyExpanded);
-    }
-  }, [historyExpanded]);
+    const run = async () => {
+      try {
+        if (!walletAddress || !contractId) return;
+        setHistoryLoading(true);
+        const r = await fetch(`/api/chat/history?address=${walletAddress}&contractId=${contractId}`, {
+          method: "GET",
+          headers: { "x-wallet-address": walletAddress! },
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const data = await r.json();
+        const list = Array.isArray(data?.chats) ? data.chats : [];
+        const expanded: ChatItem[] = list.flatMap((c: any) => [
+          {
+            _id: `${c._id}-q`,
+            address: c.address,
+            contractId: c.contractId,
+            question: c.question,
+            answer: "",
+            createdAt: c.createdAt,
+          },
+          {
+            _id: `${c._id}-a`,
+            address: c.address,
+            contractId: c.contractId,
+            question: c.question,
+            answer: c.answer,
+            createdAt: c.createdAt,
+          },
+        ]);
+        setItems(expanded);
+      } catch (e: any) {
+        // Silently ignore history load errors to avoid UI spam
+      } finally {
+        setHistoryLoading(false);
+      }
+    };
+    // Clear items first when switching contracts
+    setItems([]);
+    run();
+  }, [walletAddress, contractId]);
 
   // Clear items when switching contracts so history can hydrate for the new one
   useEffect(() => {
@@ -319,7 +320,7 @@ export default function ChatFloat() {
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {historyIsLoading && items.length === 0 ? (
+            {historyLoading && items.length === 0 ? (
               <div className="font-mono text-xs text-foreground/60">Loading…</div>
             ) : items.length === 0 ? (
               <div className="font-mono text-xs text-foreground/60">No messages</div>
