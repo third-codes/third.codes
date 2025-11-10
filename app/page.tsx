@@ -8,10 +8,18 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { GoSync, GoChevronDown, GoCopy, GoFileCode, GoCommandPalette } from "react-icons/go";
+import {
+  GoSync,
+  GoChevronDown,
+  GoCopy,
+  GoFileCode,
+  GoCommandPalette,
+} from "react-icons/go";
 
 export default function Home() {
-  const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+  const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
+    ssr: false,
+  });
   const router = useRouter();
   const [selectedSolVersion, setSelectedSolVersion] = useState("0.8.20");
   const [solidityVersions, setSolidityVersions] = useState<string[]>([]);
@@ -40,7 +48,7 @@ export default function Home() {
   const handleGoToSol = () => {
     const addr =
       typeof window !== "undefined"
-        ? (localStorage.getItem("walletAddress") || "")
+        ? localStorage.getItem("walletAddress") || ""
         : "";
     if (!addr) {
       toast.error("Please connect MetaMask first");
@@ -83,7 +91,6 @@ export default function Home() {
           </Marquee>
         </div>
         <div className="mt-8 max-w-[1100px] mx-auto mb-16 border border-[#fff2] min-h-[900px]">
-      
           <div className="border-b border-[#fff2]">
             <div className="flex justify-between">
               <div className="flex">
@@ -97,9 +104,7 @@ export default function Home() {
                 </button>
                 <DropdownMenu.Root>
                   <DropdownMenu.Trigger asChild>
-                    <button
-                      className="bg-emerald-500 outline-none h-[30px] flex items-center justify-center hover:bg-emerald-500 text-black px-2 py-[6px] font-mono text-xs"
-                    >
+                    <button className="bg-emerald-500 outline-none h-[30px] flex items-center justify-center hover:bg-emerald-500 text-black px-2 py-[6px] font-mono text-xs">
                       <GoChevronDown className="inline-block w-[14px] h-[14px]" />
                     </button>
                   </DropdownMenu.Trigger>
@@ -165,8 +170,193 @@ export default function Home() {
                 padding: { top: 8 },
                 scrollbar: { alwaysConsumeMouseWheel: false },
               }}
-              defaultValue={"// ThirdCodes — browser-based Solidity with AI.\n// Write, compile, deploy on your preferred network.\n// Connect MetaMask, pick version, and ship.\npragma solidity ^0.8.20;\n\ncontract ThirdCodes {\n    // Simple example; extend with your logic.\n    string public greeting = \"Hello, ThirdCodes!\";\n\n    // TODO: add functions, events, modifiers.\n    // Example getter:\n    function greet() external view returns (string memory) {\n        return greeting;\n    }\n\n    // Change greeting in future versions.\n    // function setGreeting(string calldata m) external { greeting = m; }\n}\n"}
+              beforeMount={(monaco) => {
+                try {
+                  monaco.languages.register({ id: "solidity" });
+                  monaco.languages.setLanguageConfiguration("solidity", {
+                    comments: { lineComment: "//", blockComment: ["/*", "*/"] },
+                    brackets: [
+                      ["{", "}"],
+                      ["[", "]"],
+                      ["(", ")"],
+                    ],
+                  });
+                  monaco.languages.setMonarchTokensProvider("solidity", {
+                    defaultToken: "",
+                    tokenPostfix: ".sol",
+                    keywords: [
+                      "pragma",
+                      "import",
+                      "contract",
+                      "library",
+                      "interface",
+                      "struct",
+                      "enum",
+                      "function",
+                      "event",
+                      "modifier",
+                      "mapping",
+                      "returns",
+                      "public",
+                      "external",
+                      "internal",
+                      "private",
+                      "view",
+                      "pure",
+                      "payable",
+                      "memory",
+                      "storage",
+                      "calldata",
+                      "if",
+                      "else",
+                      "for",
+                      "while",
+                      "try",
+                      "catch",
+                      "revert",
+                      "emit",
+                      "using",
+                      "as",
+                      "is",
+                      "new",
+                      "return",
+                      "assembly",
+                      "constructor",
+                      "abstract",
+                      "virtual",
+                      "override",
+                      "constant",
+                      "immutable",
+                      "indexed",
+                    ],
+                    typeKeywords: [
+                      "address",
+                      "bool",
+                      "string",
+                      "bytes",
+                      "int",
+                      "uint",
+                      "byte",
+                    ],
+                    operators: [
+                      "=",
+                      ">",
+                      "<",
+                      "!",
+                      "~",
+                      "?",
+                      ":",
+                      "==",
+                      "<=",
+                      ">=",
+                      "!=",
+                      "+",
+                      "-",
+                      "*",
+                      "/",
+                      "&",
+                      "|",
+                      "^",
+                      "%",
+                      "<<",
+                      " >>",
+                    ],
+                    symbols: /[=><!~?:&|+\-*\/\^%]+/,
+                    tokenizer: {
+                      root: [
+                        [/\/\/.*$/, "comment"],
+                        [/\/\*/, "comment", "comment"],
+                        [
+                          /[a-zA-Z_$][\w$]*/,
+                          {
+                            cases: {
+                              "@keywords": "keyword",
+                              "@typeKeywords": "type.identifier",
+                              "@default": "identifier",
+                            },
+                          },
+                        ],
+                        { include: "@whitespace" },
+                        [/[{}()\[\]]/, "delimiter.bracket"],
+                        [/"([^"\\]|\\.)*$/, "string.invalid"],
+                        [/"/, "string", "@string"],
+                        [/'[^'\\]*(?:\\.[^'\\]*)*'/, "string"],
+                        [
+                          /\d+(?:_\d+)*(?:\.[\d_]+)?(?:[eE][+-]?\d+)?/,
+                          "number",
+                        ],
+                        [
+                          /(@symbols)/,
+                          {
+                            cases: {
+                              "@operators": "operator",
+                              "@default": "delimiter",
+                            },
+                          },
+                        ],
+                      ],
+                      comment: [
+                        [/[^/*]+/, "comment"],
+                        [/\/\*/, "comment", "@push"],
+                        [/\*\//, "comment", "@pop"],
+                        [/\/[/*]/, "comment"],
+                      ],
+                      whitespace: [
+                        [/\s+/, "white"],
+                        [/\/\/.*$/, "comment"],
+                      ],
+                      string: [
+                        [/[^\\"]+/, "string"],
+                        [/\\./, "string.escape"],
+                        [/"/, "string", "@pop"],
+                      ],
+                    },
+                  });
+                } catch {}
+              }}
+              defaultValue={
+                '// ThirdCodes — browser-based Solidity with AI.\n// Write, compile, deploy on your preferred network.\n// Connect MetaMask, pick version, and ship.\npragma solidity ^0.8.20;\n\ncontract ThirdCodes {\n    // Simple example; extend with your logic.\n    string public greeting = "Hello, ThirdCodes!";\n\n    // TODO: add functions, events, modifiers.\n    // Example getter:\n    function greet() external view returns (string memory) {\n        return greeting;\n    }\n\n    // Change greeting in future versions.\n    // function setGreeting(string calldata m) external { greeting = m; }\n}\n'
+              }
             />
+          </div>
+          <h3 className="text-white text-center border-b pb-8 border-[#fff2] font-mono text-2xl mt-8">
+            AI-Codes: From Prompt to Protocol
+          </h3>
+          <div className="flex">
+            <div className="border-r p-12 font-mono w-[50%] border-[#fff2]">
+              <span className="text-xs bg-emerald-400 text-black px-3 py-[3px] rounded-full">
+                Create
+              </span>
+              <h2 className="text-xl mt-2">From Idea to Code in Seconds</h2>
+              <p className="text-[12px] mt-2 text-foreground/60">
+                Instantly generate Solidity smart contracts with AI. Describe
+                your idea and get clean, deployment-ready code in seconds.
+              </p>
+              <img src={"/ai-codes-min.png"} className="mt-7" />
+            </div>
+
+            <div className="p-12 font-mono w-[50%]">
+              <span className="text-xs bg-emerald-400 text-black px-3 py-[3px] rounded-full">
+                Fix/Update
+              </span>
+              <h2 className="text-xl mt-2">AI-Powered Debugging & Upgrades</h2>
+              <p className="text-[12px] mt-2 text-foreground/60">
+                Each contract includes an AI agent that understands your
+                codebase, finds issues, and updates logic safely.
+              </p>
+              <img src={"/contract-chat-min.png"} className="mt-7" />
+            </div>
+          </div>
+
+          <div className="text-white border-t py-8 border-[#fff2] font-mono text-2xl">
+            <h3 className="text-center"> One-Click Deployment</h3>
+            <p className="text-sm mt-4 text-center text-foreground/60">
+              Connect your wallet and deploy your smart contract to the
+              blockchain with a single click.
+            </p>
+            <button className="bg-white hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-4 text-black rounded-full text-sm">
+              Initialize a new contract
+            </button>
           </div>
         </div>
       </div>
