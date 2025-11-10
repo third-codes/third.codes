@@ -8,13 +8,15 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  GoSync,
-  GoChevronDown,
-  GoCopy,
-  GoFileCode,
-  GoCommandPalette,
-} from "react-icons/go";
+  import {
+    GoSync,
+    GoChevronDown,
+    GoCopy,
+    GoFileCode,
+    GoCommandPalette,
+    GoArrowUpRight,
+  } from "react-icons/go";
+// Icons are now served as static SVGs from public/icons/networks
 
 export default function Home() {
   const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -24,7 +26,50 @@ export default function Home() {
   const [selectedSolVersion, setSelectedSolVersion] = useState("0.8.20");
   const [solidityVersions, setSolidityVersions] = useState<string[]>([]);
 
-  // Load full Solidity versions from server, fall back to current selection
+  const smartContractTemplates = [
+    {
+      title: "ERC20 Token",
+      badge: "Token",
+      description: "Create your own crypto token",
+      prompt:
+        "Create an ERC20 token named ForgeToken with 18 decimals and an initial supply of 1,000,000. Include mint and burn functions.",
+    },
+    {
+      title: "ERC721 NFT",
+
+      description: "Mint and manage NFTs easily",
+      prompt:
+        "Generate an ERC721 NFT contract called ThridNFT. Include minting and metadata (tokenURI) functions.",
+    },
+    {
+      title: "Staking ",
+
+      description: "Lock tokens and earn rewards",
+      prompt:
+        "Build a staking contract where users can deposit ERC20 tokens to earn rewards over time. Include claim and withdraw functions.",
+    },
+    {
+      title: "Voting System",
+
+      description: "Token-based governance voting",
+      prompt:
+        "Create a decentralized voting contract. Token holders can propose, vote, and execute proposals.",
+    },
+    {
+      title: "DEX Contract",
+      description: "Swap tokens via liquidity pools",
+      prompt:
+        "Generate a simple DEX that swaps between two ERC20 tokens using a liquidity pool. Include add/remove liquidity functions.",
+    },
+    {
+      title: "DAO Contract",
+
+      description: "Community-driven project control",
+      prompt:
+        "Create a DAO contract with proposal creation, voting, and treasury management. Include execution of approved proposals.",
+    },
+  ];
+
   useEffect(() => {
     let cancelled = false;
     const loadVersions = async () => {
@@ -324,7 +369,7 @@ export default function Home() {
           </h3>
           <div className="flex">
             <div className="border-r p-12 font-mono w-[50%] border-[#fff2]">
-              <span className="text-xs bg-emerald-400 text-black px-3 py-[3px] rounded-full">
+              <span className="text-xs text-emerald-400 border border-emerald-400 px-3 py-[3px] rounded-full">
                 Create
               </span>
               <h2 className="text-xl mt-2">From Idea to Code in Seconds</h2>
@@ -336,7 +381,7 @@ export default function Home() {
             </div>
 
             <div className="p-12 font-mono w-[50%]">
-              <span className="text-xs bg-emerald-400 text-black px-3 py-[3px] rounded-full">
+              <span className="text-xs text-emerald-400 border border-emerald-400  px-3 py-[3px] rounded-full">
                 Fix/Update
               </span>
               <h2 className="text-xl mt-2">AI-Powered Debugging & Upgrades</h2>
@@ -357,6 +402,89 @@ export default function Home() {
             <button className="bg-white hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-4 text-black rounded-full text-sm">
               Initialize a new contract
             </button>
+          </div>
+          <div className="grid border-t border-[#fff2] grid-cols-3">
+            {smartContractTemplates.map((item, idx) => (
+              <div
+                key={item.title}
+                className={`p-4 font-mono border-[#fff2] ${
+                  idx % 3 !== 2 ? "border-r" : ""
+                } ${idx < 3 ? "border-b" : ""}`}
+              >
+                <p className="text-[32px]   font-mono text-center my-24 items-center justify-between">
+                  {item.title}
+                  {/* <span className="text-[10px] bg-emerald-400 text-black px-2 py-[2px] rounded-full">Popular</span> */}
+                </p>
+                <h3 className="mt-2">{item.description}</h3>
+                <p className="text-foreground/60 text-[12px] mt-2">
+                  {item.prompt}
+                </p>
+                <button className="text-[12px] mb-2 flex gap-1 items-center hover:opacity-80 cursor-pointer bg-emerald-400 text-black mt-3 px-3 py-[3px] rounded-full">
+                  Deploy <GoArrowUpRight />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="text-white h-[189px] border-t border-[#fff2] font-mono text-2xl">
+            <MonacoEditor
+              defaultLanguage="solidity"
+              theme="vs-dark"
+              options={{
+                readOnly: true,
+                contextmenu: false,
+                fontSize: 12,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                padding: { top: 6 },
+                scrollbar: { alwaysConsumeMouseWheel: false },
+              }}
+              defaultValue={
+                "pragma solidity ^0.8.20;\n\ncontract ThirdCodesFAQ {\n    // Q1: Connect MetaMask? A1: Click Connect Wallet; address is saved for actions.\n    // Q2: Choose Solidity version? A2: Use header dropdown; loads from /api/solc/versions.\n    // Q3: Compile & Deploy? A3: Save & Compile then Deploy; requires MetaMask connection.\n    // Q4: Where is my contract saved? A4: Browser or backend; export via Copy/Download.\n    // Q5: Supported networks? A5: Any EVM network via wallet/provider settings.\n}\n"
+              }
+            />
+          </div>
+          <div className="text-white border-t border-[#fff2] font-mono text-2xl">
+            <h3 className="text-center mt-16"> One Code. Every Chain.</h3>
+           <p className="text-sm mt-4 text-center text-foreground/60">
+             With third.codes, your smart contracts are ready to deploy on any
+              <br />
+              EVM compatible network, seamlessly, securely, and instantly.
+            </p>
+           {/* EVM-compatible networks marquee */}
+           <div className="mt-16">
+             <Marquee
+               speed={35}
+               pauseOnHover
+               gradient
+               gradientColor="#000000"
+               gradientWidth={80}
+             >
+               {[
+                 { label: "Ethereum", ledgerId: "ethereum", ticker: "ETH" },
+                 { label: "Polygon", ledgerId: "polygon", ticker: "MATIC" },
+                 { label: "BSC", ledgerId: "bnb", ticker: "BNB" },
+                 { label: "Arbitrum", ledgerId: "arbitrum", ticker: "ARB" },
+                 { label: "Optimism", ledgerId: "optimism", ticker: "OP" },
+                 { label: "zkSync", ledgerId: "zksync", ticker: "ZK" },
+                 { label: "Avalanche", ledgerId: "avalanche", ticker: "AVAX" },
+                 { label: "Fantom", ledgerId: "fantom", ticker: "FTM" },
+                 { label: "Celo", ledgerId: "celo", ticker: "CELO" },
+                 { label: "Harmony", ledgerId: "harmony", ticker: "ONE" },
+                 { label: "Moonbeam", ledgerId: "moonbeam", ticker: "GLMR" },
+                 { label: "Moonriver", ledgerId: "moonriver", ticker: "MOVR" },
+                 { label: "Aurora", ledgerId: "aurora", ticker: "AURORA" },
+               ].map(({ label, ledgerId }) => (
+                 <div key={label} className="w-[160px] py-7 flex gap-2 justify-center border border-l-0 border-b-0 border-[#fff2] items-center">
+                   <img
+                     src={`/icons/${ledgerId}.svg`}
+                     alt={`${label} logo`}
+                     className="h-8 w-8"
+                   />
+                   <span className="text-xs text-foreground/50">{label}</span>
+                 </div>
+               ))}
+             </Marquee>
+           </div>
           </div>
         </div>
       </div>
