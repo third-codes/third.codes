@@ -60,7 +60,7 @@ body {
 #webgl {
   top: 0;
   left: 0;
-  position: fixed;
+  position: absolute;
   height: 100svh;
   width: 100%;
 }
@@ -68,6 +68,36 @@ body {
 #webgl canvas {
   width: 100%;
   height: 100%;
+}
+
+/* Simple marquee styles */
+.marquee {
+  position: relative;
+  overflow: hidden;
+}
+
+.marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  will-change: transform;
+  animation: marquee-scroll 20s linear infinite;
+}
+
+.marquee-item img {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+  filter: brightness(0.9);
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 /* Web3Auth modal dark background override */

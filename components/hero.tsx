@@ -272,7 +272,7 @@ export function Hero() {
 
   // No history and no data fetching needed here per requirements
   return (
-    <div className="flex flex-col h-svh justify-between">
+    <div className="flex flex-col h-svh justify-between relative">
       {allowGL && <LazyGL hovering={hovering} />}
 
       <div className="pb-16 mt-auto text-center relative">
