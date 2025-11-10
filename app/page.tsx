@@ -8,14 +8,14 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-  import {
-    GoSync,
-    GoChevronDown,
-    GoCopy,
-    GoFileCode,
-    GoCommandPalette,
-    GoArrowUpRight,
-  } from "react-icons/go";
+import {
+  GoSync,
+  GoChevronDown,
+  GoCopy,
+  GoFileCode,
+  GoCommandPalette,
+  GoArrowUpRight,
+} from "react-icons/go";
 // Icons are now served as static SVGs from public/icons/networks
 
 export default function Home() {
@@ -106,7 +106,7 @@ export default function Home() {
       <Hero />
       <Leva hidden />
       <div>
-        <div className="mt-8 max-w-[1100px] mx-auto mb-16">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-16">
           <h4 className="text-center text-lg font-mono text-foreground/40 mb-8">
             <span className="">Trusted</span> by the best teams
           </h4>
@@ -135,7 +135,7 @@ export default function Home() {
             ))}
           </Marquee>
         </div>
-        <div className="mt-8 max-w-[1100px] mx-auto mb-16 border border-[#fff2] min-h-[900px]">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-16 border border-[#fff2] min-h-[900px]">
           <div className="border-b border-[#fff2]">
             <div className="flex justify-between">
               <div className="flex">
@@ -425,7 +425,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="text-white h-[189px] border-t border-[#fff2] font-mono text-2xl">
+          <div className="text-white h-[340px] border-t border-[#fff2] font-mono text-2xl">
             <MonacoEditor
               defaultLanguage="solidity"
               theme="vs-dark"
@@ -439,52 +439,55 @@ export default function Home() {
                 scrollbar: { alwaysConsumeMouseWheel: false },
               }}
               defaultValue={
-                "pragma solidity ^0.8.20;\n\ncontract ThirdCodesFAQ {\n    // Q1: Connect MetaMask? A1: Click Connect Wallet; address is saved for actions.\n    // Q2: Choose Solidity version? A2: Use header dropdown; loads from /api/solc/versions.\n    // Q3: Compile & Deploy? A3: Save & Compile then Deploy; requires MetaMask connection.\n    // Q4: Where is my contract saved? A4: Browser or backend; export via Copy/Download.\n    // Q5: Supported networks? A5: Any EVM network via wallet/provider settings.\n}\n"
+                "pragma solidity ^0.8.20;\n\ncontract ThirdCodesFAQ {\n    // Q1: How can I deploy a contract?\n    // A1: Write your Solidity code, compile it, then click Deploy while connected to MetaMask.\n\n    // Q2: What happens to my code after saving?\n    // A2: Your contract is saved in the backend or downloaded via export options.\n\n    // Q3: Can I interact with deployed contracts?\n    // A3: Yes, after deployment the interface automatically loads all public/external functions.\n\n    // Q4: Which Solidity versions are supported?\n    // A4: All official compiler releases from 0.4.x to 0.8.x can be selected from the version menu.\n\n    // Q5: How do I switch blockchain networks?\n    // A5: Change your MetaMask network to any supported EVM chain; the app will auto-detect it.\n}"
               }
             />
           </div>
           <div className="text-white border-t border-[#fff2] font-mono text-2xl">
             <h3 className="text-center mt-16"> One Code. Every Chain.</h3>
-           <p className="text-sm mt-4 text-center text-foreground/60">
-             With third.codes, your smart contracts are ready to deploy on any
+            <p className="text-sm mt-4 text-center text-foreground/60">
+              With third.codes, your smart contracts are ready to deploy on any
               <br />
               EVM compatible network, seamlessly, securely, and instantly.
             </p>
-           {/* EVM-compatible networks marquee */}
-           <div className="mt-16">
-             <Marquee
-               speed={35}
-               pauseOnHover
-               gradient
-               gradientColor="#000000"
-               gradientWidth={80}
-             >
-               {[
-                 { label: "Ethereum", ledgerId: "ethereum", ticker: "ETH" },
-                 { label: "Polygon", ledgerId: "polygon", ticker: "MATIC" },
-                 { label: "BSC", ledgerId: "bnb", ticker: "BNB" },
-                 { label: "Arbitrum", ledgerId: "arbitrum", ticker: "ARB" },
-                 { label: "Optimism", ledgerId: "optimism", ticker: "OP" },
-                 { label: "zkSync", ledgerId: "zksync", ticker: "ZK" },
-                 { label: "Avalanche", ledgerId: "avalanche", ticker: "AVAX" },
-                 { label: "Fantom", ledgerId: "fantom", ticker: "FTM" },
-                 { label: "Celo", ledgerId: "celo", ticker: "CELO" },
-                 { label: "Harmony", ledgerId: "harmony", ticker: "ONE" },
-                 { label: "Moonbeam", ledgerId: "moonbeam", ticker: "GLMR" },
-                 { label: "Moonriver", ledgerId: "moonriver", ticker: "MOVR" },
-                 { label: "Aurora", ledgerId: "aurora", ticker: "AURORA" },
-               ].map(({ label, ledgerId }) => (
-                 <div key={label} className="w-[160px] py-7 flex gap-2 justify-center border border-l-0 border-b-0 border-[#fff2] items-center">
-                   <img
-                     src={`/icons/${ledgerId}.svg`}
-                     alt={`${label} logo`}
-                     className="h-8 w-8"
-                   />
-                   <span className="text-xs text-foreground/50">{label}</span>
-                 </div>
-               ))}
-             </Marquee>
-           </div>
+            {/* EVM-compatible networks marquee */}
+            <div className="mt-16">
+              <Marquee
+                speed={35}
+                pauseOnHover
+                gradient
+                gradientColor="#000000"
+                gradientWidth={80}
+              >
+                {[
+                  { label: "Ethereum", ledgerId: "ethereum", ticker: "ETH" },
+                  { label: "Polygon", ledgerId: "polygon", ticker: "MATIC" },
+                  { label: "BSC", ledgerId: "bnb", ticker: "BNB" },
+                  { label: "Arbitrum", ledgerId: "arbitrum", ticker: "ARB" },
+                  { label: "Optimism", ledgerId: "optimism", ticker: "OP" },
+                  { label: "zkSync", ledgerId: "zksync", ticker: "ZK" },
+                  { label: "Avalanche", ledgerId: "avalanche", ticker: "AVAX" },
+                  { label: "Fantom", ledgerId: "fantom", ticker: "FTM" },
+                  { label: "Celo", ledgerId: "celo", ticker: "CELO" },
+                  { label: "Harmony", ledgerId: "harmony", ticker: "ONE" },
+                  { label: "Moonbeam", ledgerId: "moonbeam", ticker: "GLMR" },
+                  { label: "Moonriver", ledgerId: "moonriver", ticker: "MOVR" },
+                  { label: "Aurora", ledgerId: "aurora", ticker: "AURORA" },
+                ].map(({ label, ledgerId }) => (
+                  <div
+                    key={label}
+                    className="w-[160px] py-7 flex gap-2 justify-center border border-l-0 border-b-0 border-[#fff2] items-center"
+                  >
+                    <img
+                      src={`/icons/${ledgerId}.svg`}
+                      alt={`${label} logo`}
+                      className="h-8 w-8"
+                    />
+                    <span className="text-xs text-foreground/50">{label}</span>
+                  </div>
+                ))}
+              </Marquee>
+            </div>
           </div>
         </div>
       </div>
