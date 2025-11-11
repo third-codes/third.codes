@@ -490,6 +490,17 @@ export default function Home() {
             </div>
           </div>
         </div>
+        <h3 className="text-center text-4xl font-mono mt-22">
+          {" "}
+          Ready to start?
+        </h3>
+        <p className="mt-3 text-center mb-5 font-mono text-foreground/60">
+          We’ll generate an empty smart contract structure for you, ready to
+          build <br /> and launch with AI instantly.
+        </p>
+        <button className="bg-white font-mono mb-16 hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-8 text-black rounded-full text-sm">
+          Build Now!
+        </button>
       </div>
     </>
   );
