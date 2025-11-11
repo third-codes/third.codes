@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "rc-tree/assets/index.css";
 import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
 import { Toaster } from "sonner";
 import ChatFloat from "@/components/chat-float";
 
@@ -48,6 +49,7 @@ export default function RootLayout({
       >
         <Header />
         {children}
+        <Footer />
         <ChatFloat />
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>

@@ -30,7 +30,7 @@ export const Header = () => {
           </p>
         </Link>
         <nav className="flex max-lg:hidden absolute left-1/2 -translate-x-1/2 items-center justify-center gap-x-10">
-          {["Templates", "Enterprise", "Pricing", "Students", "FAQ"].map(
+          {["Enterprise", "Pricing", "Students", "FAQ"].map(
             (item) => (
               <Link
                 className=" inline-block text-sm font-mono text-foreground/60 hover:text-foreground/100 duration-150 transition-colors ease-out outline-none focus:outline-none"
