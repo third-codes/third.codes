@@ -191,22 +191,41 @@ export function Hero() {
     }
   }, []);
 
-  // Initialize wallet address from storage only; do NOT auto-connect via eth_accounts
+  // Initialize wallet strictly: require provider + active account; do not trust storage alone
   useEffect(() => {
-    try {
-      const connected =
-        typeof window !== "undefined" &&
-        localStorage.getItem("walletConnected") === "true";
-      const storedAddr =
-        typeof window !== "undefined"
-          ? localStorage.getItem("walletAddress")
-          : null;
-      setWalletAddr(connected && storedAddr ? storedAddr : null);
-      if (!connected) {
-        // clear stale cookie if present
-        document.cookie = "walletAddress=; path=/; max-age=0";
-      }
-    } catch {}
+    (async () => {
+      try {
+        const ethereum =
+          typeof window !== "undefined" ? (window as any).ethereum : null;
+        // If no provider, ensure we show disconnected and clear any stale flags
+        if (!ethereum || typeof ethereum.request !== "function") {
+          setWalletAddr(null);
+          try {
+            if (typeof window !== "undefined") {
+              localStorage.setItem("walletConnected", "false");
+              document.cookie = "walletAddress=; path=/; max-age=0";
+            }
+          } catch {}
+          return;
+        }
+        // Read accounts without prompting; only mark connected if an account exists
+        const accs = (await ethereum.request({ method: "eth_accounts" })) as string[];
+        const addr = Array.isArray(accs) && accs.length > 0 ? accs[0] : null;
+        setWalletAddr(addr);
+        try {
+          if (addr) {
+            localStorage.setItem("walletAddress", addr);
+            localStorage.setItem("walletConnected", "true");
+            const maxAge = 60 * 60 * 24 * 30; // 30 days
+            document.cookie = `walletAddress=${addr}; path=/; max-age=${maxAge}`;
+          } else {
+            localStorage.removeItem("walletAddress");
+            localStorage.setItem("walletConnected", "false");
+            document.cookie = "walletAddress=; path=/; max-age=0";
+          }
+        } catch {}
+      } catch {}
+    })();
   }, []);
 
   // Live-sync wallet changes when MetaMask account changes

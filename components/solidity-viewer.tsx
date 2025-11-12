@@ -695,16 +695,8 @@ export default function SolidityViewer({
     const ethereum =
       typeof window !== "undefined" ? (window as any).ethereum : null;
     if (!addr && !ethereum) {
-      toast.warning("MetaMask not detected", {
-        description: "Install MetaMask to manage and deploy contracts.",
-        action: {
-          label: "Install",
-          onClick: () => {
-            try {
-              window.open("https://metamask.io/download.html", "_blank");
-            } catch {}
-          },
-        },
+      toast.error("MetaMask not detected", {
+        description: "Please make sure MetaMask is installed.",
       });
     }
   }, []);
@@ -825,7 +817,7 @@ export default function SolidityViewer({
         const cidHex: any = await ethereum.request({ method: "eth_chainId" });
         const cidNum =
           typeof cidHex === "string" ? parseInt(cidHex, 16) : Number(cidHex);
-        let name = "Unknown";
+        let name = `Chain ${cidNum}`;
         let symbol = "ETH";
         switch (cidNum) {
           case 1:
@@ -852,6 +844,14 @@ export default function SolidityViewer({
             name = "Polygon Amoy";
             symbol = "POL";
             break;
+          case 1088:
+            name = "Metis Andromeda";
+            symbol = "METIS";
+            break;
+          case 133717:
+            name = "Hyperion Testnet";
+            symbol = "tMETIS";
+            break;
           default:
             name = `Chain ${cidNum}`;
             symbol = "ETH";
@@ -871,7 +871,7 @@ export default function SolidityViewer({
     const onChainChanged = async (cidHex: string) => {
       try {
         const cidNum = parseInt(cidHex, 16);
-        let name = "Unknown";
+        let name = `Chain ${cidNum}`;
         let symbol = "ETH";
         switch (cidNum) {
           case 1:
@@ -897,6 +897,14 @@ export default function SolidityViewer({
           case 80002:
             name = "Polygon Amoy";
             symbol = "POL";
+            break;
+          case 1088:
+            name = "Metis Andromeda";
+            symbol = "METIS";
+            break;
+          case 133717:
+            name = "Hyperion Testnet";
+            symbol = "tMETIS";
             break;
           default:
             name = `Chain ${cidNum}`;
@@ -1614,6 +1622,25 @@ export default function SolidityViewer({
       if (customGas && gasLimit && Number(gasLimit) > 0) {
         txOpts.gasLimit = BigInt(gasLimit);
       }
+
+      // Hyperion Testnet (133717) may require legacy gasPrice
+      try {
+        const network = await provider.getNetwork();
+        const cid = Number(network.chainId);
+        if (cid === 133717) {
+          const feeData = await provider.getFeeData();
+          if (feeData?.gasPrice) {
+            txOpts.gasPrice = feeData.gasPrice;
+          }
+          // force legacy type-0 if gasPrice is used
+          txOpts.type = 0;
+          // if user didn't set custom gas, add a conservative gas limit
+          if (!customGas && !txOpts.gasLimit) {
+            // typical simple contracts deploy under 3M; use 4M as safe default
+            txOpts.gasLimit = BigInt(4_000_000);
+          }
+        }
+      } catch {}
 
       // Deploy (ensure bytecode has 0x prefix)
       const bytecodeHex = (compiledBytecode || "").startsWith("0x")

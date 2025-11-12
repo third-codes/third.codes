@@ -17,9 +17,57 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Third Codes",
-  description: "Build and launch Web3 smart contracts with AI",
+  title: {
+    default: "Third Codes",
+    template: "%s · Third Codes",
+  },
+  description: "Build and launch Web3 smart contracts with AI.",
+  applicationName: "Third Codes",
   generator: "v0.app",
+  keywords: [
+    "Web3",
+    "Solidity",
+    "Smart Contracts",
+    "AI",
+    "Deploy",
+    "MetaMask",
+    "Third Codes",
+  ],
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  openGraph: {
+    type: "website",
+    url: "/",
+    title: "Third Codes",
+    description: "Build and launch Web3 smart contracts with AI.",
+    siteName: "Third Codes",
+    images: [
+      { url: "/thirdcodes.png", width: 1200, height: 630, alt: "Third Codes" },
+      { url: "/third.png", width: 1200, height: 630, alt: "Third Codes" },
+    ],
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Third Codes",
+    description: "Build and launch Web3 smart contracts with AI.",
+    site: "@thirdcodes",
+    images: ["/thirdcodes.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  themeColor: "#000000",
   icons: {
     icon: [
       { url: "/favicon.ico", type: "image/x-icon" },

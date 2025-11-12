@@ -1,8 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 export const Footer = () => {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/sol")) {
+    return null;
+  }
   const year = new Date().getFullYear();
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterStatus, setNewsletterStatus] = useState<
@@ -113,12 +118,7 @@ export const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link
-                  href="#students"
-                  className="text-foreground/60 hover:text-foreground/100 font-mono text-xs"
-                >
-                  Students
-                </Link>
+                {/* Students link removed per request */}
               </li>
               <li>
                 <a

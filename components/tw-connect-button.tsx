@@ -1,13 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
-// Toasts disabled by request. Provide no-op API to avoid UI popups.
-const toast = {
-  success: (..._args: any[]) => {},
-  error: (..._args: any[]) => {},
-  info: (..._args: any[]) => {},
-  warning: (..._args: any[]) => {},
-};
+import { toast } from "sonner";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 type Props = {
@@ -24,9 +18,13 @@ export default function TwConnectButton({ className, style }: Props) {
   const [nativeSymbol, setNativeSymbol] = useState<string>("ETH");
   const [balance, setBalance] = useState<string | null>(null);
   const [infoLoading, setInfoLoading] = useState<boolean>(false);
-  const [providers, setProviders] = useState<{ id: string; name: string; provider: any }[]>([]);
+  const [providers, setProviders] = useState<
+    { id: string; name: string; provider: any }[]
+  >([]);
   const [currentProvider, setCurrentProvider] = useState<any | null>(null);
-  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null
+  );
 
   const shortAddr = useMemo(
     () => (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : null),
@@ -35,7 +33,8 @@ export default function TwConnectButton({ className, style }: Props) {
 
   // Detect available injected providers and select current provider
   useEffect(() => {
-    const injected = typeof window !== "undefined" ? (window as any).ethereum : null;
+    const injected =
+      typeof window !== "undefined" ? (window as any).ethereum : null;
 
     const infoFor = (p: any) => {
       const name = p?.isMetaMask
@@ -67,7 +66,10 @@ export default function TwConnectButton({ className, style }: Props) {
     setProviders(list);
 
     // Select persisted provider or fallback to first
-    const persisted = typeof window !== "undefined" ? localStorage.getItem("walletProvider") : null;
+    const persisted =
+      typeof window !== "undefined"
+        ? localStorage.getItem("walletProvider")
+        : null;
     const sel = list.find((x) => x.id === persisted) || list[0] || null;
     if (sel) {
       setSelectedProviderId(sel.id);
@@ -84,7 +86,9 @@ export default function TwConnectButton({ className, style }: Props) {
 
   // Register account and chain listeners on the currently selected provider
   useEffect(() => {
-    const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
+    const ethereum =
+      currentProvider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : null);
 
     const mirror = (addr: string | null, conn: boolean) => {
       setAddress(addr);
@@ -103,24 +107,45 @@ export default function TwConnectButton({ className, style }: Props) {
       } catch {}
     };
 
-    // Initialize from storage only; do NOT auto-connect via eth_accounts
-    try {
-      const storedAddr =
-        typeof window !== "undefined" ? localStorage.getItem("walletAddress") : null;
-      const storedConn =
-        typeof window !== "undefined" ? localStorage.getItem("walletConnected") === "true" : false;
-      if (storedConn && storedAddr) {
-        mirror(storedAddr, true);
-        // Immediately refresh network and balance after restoring from storage
-        refreshWalletInfo(storedAddr).catch(() => {});
-      } else {
+    // Initialize from storage only if a provider exists AND has an active account
+    // We still avoid prompting the user; eth_accounts does not trigger a prompt.
+    (async () => {
+      try {
+        // If no provider or request API, ensure we are NOT marked connected
+        if (!ethereum || typeof ethereum.request !== "function") {
+          mirror(null, false);
+          return;
+        }
+        const accs = (await ethereum.request({
+          method: "eth_accounts",
+        })) as string[];
+        const hasActiveAccount = Array.isArray(accs) && accs.length > 0;
+        const storedAddr =
+          typeof window !== "undefined"
+            ? localStorage.getItem("walletAddress")
+            : null;
+        const storedConn =
+          typeof window !== "undefined"
+            ? localStorage.getItem("walletConnected") === "true"
+            : false;
+        if (storedConn && storedAddr && hasActiveAccount) {
+          mirror(storedAddr, true);
+          // Immediately refresh network and balance after restoring from storage
+          refreshWalletInfo(storedAddr).catch(() => {});
+        } else {
+          // Either provider missing or no active account; stay disconnected
+          mirror(null, false);
+        }
+      } catch {
         mirror(null, false);
       }
-    } catch {}
+    })();
 
     // Keep address in sync when user changes accounts in MetaMask (only if connected)
     const onAccountsChanged = (accs: string[]) => {
-      const conn = typeof window !== "undefined" && localStorage.getItem("walletConnected") === "true";
+      const conn =
+        typeof window !== "undefined" &&
+        localStorage.getItem("walletConnected") === "true";
       if (!conn) return;
       const addr = accs?.[0] ?? null;
       mirror(addr, !!addr);
@@ -177,6 +202,8 @@ export default function TwConnectButton({ className, style }: Props) {
     42161: "ETH", // Arbitrum
     56: "BNB",
     43114: "AVAX",
+    1088: "METIS", // Metis Andromeda
+    133717: "tMETIS", // Metis Hyperion Testnet
   };
 
   const nameByChain: Record<number, string> = {
@@ -188,6 +215,8 @@ export default function TwConnectButton({ className, style }: Props) {
     42161: "Arbitrum One",
     56: "BNB Smart Chain",
     43114: "Avalanche C-Chain",
+    1088: "Metis Andromeda",
+    133717: "Hyperion Testnet",
   };
 
   // Params for adding networks if not present in MetaMask
@@ -257,18 +286,37 @@ export default function TwConnectButton({ className, style }: Props) {
       rpcUrls: ["https://api.avax.network/ext/bc/C/rpc"],
       blockExplorerUrls: ["https://snowtrace.io"],
     },
+    1088: {
+      chainId: "0x440",
+      chainName: "Metis Andromeda",
+      nativeCurrency: { name: "Metis", symbol: "METIS", decimals: 18 },
+      rpcUrls: ["https://andromeda.metis.io/?owner=1088"],
+      blockExplorerUrls: ["https://andromeda-explorer.metis.io"],
+    },
+    133717: {
+      chainId: "0x20a55",
+      chainName: "Hyperion Testnet",
+      nativeCurrency: { name: "Test Metis", symbol: "tMETIS", decimals: 18 },
+      rpcUrls: ["https://hyperion-testnet.metisdevops.link"],
+      blockExplorerUrls: ["https://hyperion-testnet-explorer.metisdevops.link"],
+    },
   };
 
   const refreshWalletInfo = async (addr?: string | null) => {
     try {
-      const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
+      const ethereum =
+        currentProvider ??
+        (typeof window !== "undefined" ? (window as any).ethereum : null);
       if (!ethereum) return;
       const provider = new ethers.BrowserProvider(ethereum);
       setInfoLoading(true);
       const net = await provider.getNetwork();
       const cid = Number(net.chainId);
       setChainId(cid);
-      setChainName(nameByChain[cid] ?? net.name ?? "Unknown");
+      const resolvedName =
+        nameByChain[cid] ??
+        (net.name && net.name !== "unknown" ? net.name : `Chain #${cid}`);
+      setChainName(resolvedName);
       setNativeSymbol(symbolByChain[cid] ?? "ETH");
       const targetAddr = addr ?? address;
       if (targetAddr) {
@@ -305,11 +353,16 @@ export default function TwConnectButton({ className, style }: Props) {
   }, [connected, address]);
 
   const handleConnect = async () => {
-    const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
-    if (!ethereum || typeof ethereum.request !== "function") {
-      toast.error("Wallet provider not detected", {
-        description: "Install a web3 wallet (e.g. MetaMask, Coinbase) and refresh.",
-      });
+    const ethereum =
+      currentProvider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : null);
+    // Only proceed if MetaMask is installed and available
+    if (
+      !ethereum ||
+      typeof ethereum.request !== "function" ||
+      !ethereum.isMetaMask
+    ) {
+      toast.error("MetaMask wallet not found. Please install MetaMask.");
       return;
     }
     try {
@@ -321,7 +374,9 @@ export default function TwConnectButton({ className, style }: Props) {
           params: [{ eth_accounts: {} }],
         });
       } catch {}
-      const accs = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const accs = (await ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
       const addr = accs?.[0] ?? null;
       if (addr) {
         setAddress(addr);
@@ -337,11 +392,15 @@ export default function TwConnectButton({ className, style }: Props) {
             );
           }
         } catch {}
-        toast.success("Wallet connected", { description: `${addr.slice(0, 6)}...${addr.slice(-4)}` });
+        toast.success("Wallet connected", {
+          description: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
+        });
         // Load network and balance
         await refreshWalletInfo(addr);
       } else {
-        toast.error("Connection failed", { description: "No account returned by provider." });
+        toast.error("Connection failed", {
+          description: "No account returned by provider.",
+        });
       }
     } catch (e: any) {
       const msg = e?.message || String(e) || "Connection error";
@@ -360,7 +419,9 @@ export default function TwConnectButton({ className, style }: Props) {
       localStorage.setItem("walletConnected", "false");
       document.cookie = "walletAddress=; path=/; max-age=0";
       // Attempt to revoke permissions so user can re-select account next time
-      const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
+      const ethereum =
+        currentProvider ??
+        (typeof window !== "undefined" ? (window as any).ethereum : null);
       try {
         if (ethereum && typeof ethereum.request === "function") {
           await ethereum.request({
@@ -381,11 +442,11 @@ export default function TwConnectButton({ className, style }: Props) {
   };
 
   const handleSwitch = async () => {
-    const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
+    const ethereum =
+      currentProvider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : null);
     if (!ethereum || typeof ethereum.request !== "function") {
-      toast.error("Wallet provider not detected", {
-        description: "Install a web3 wallet (e.g. MetaMask, Coinbase) and refresh.",
-      });
+      toast.error("MetaMask not detected.");
       return;
     }
     try {
@@ -396,7 +457,9 @@ export default function TwConnectButton({ className, style }: Props) {
           params: [{ eth_accounts: {} }],
         });
       } catch {}
-      const accs = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+      const accs = (await ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
       const addr = accs?.[0] ?? null;
       if (addr) {
         setAddress(addr);
@@ -412,7 +475,9 @@ export default function TwConnectButton({ className, style }: Props) {
             );
           }
         } catch {}
-        toast.success("Account switched", { description: `${addr.slice(0, 6)}...${addr.slice(-4)}` });
+        toast.success("Account switched", {
+          description: `${addr.slice(0, 6)}...${addr.slice(-4)}`,
+        });
         await refreshWalletInfo(addr);
       } else {
         toast.error("Switch failed", { description: "No account selected." });
@@ -426,16 +491,18 @@ export default function TwConnectButton({ className, style }: Props) {
   };
 
   const switchNetwork = async (targetChainId: number) => {
-    const ethereum = currentProvider ?? (typeof window !== "undefined" ? (window as any).ethereum : null);
+    const ethereum =
+      currentProvider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : null);
     if (!ethereum || typeof ethereum.request !== "function") {
-      toast.error("Wallet provider not detected", {
-        description: "Install a web3 wallet (e.g. MetaMask, Coinbase) and refresh.",
-      });
+      toast.error("MetaMask not detected.");
       return;
     }
     try {
       setLoading(true);
-      const targetHex = chainParams[targetChainId]?.chainId ?? `0x${targetChainId.toString(16)}`;
+      const targetHex =
+        chainParams[targetChainId]?.chainId ??
+        `0x${targetChainId.toString(16)}`;
       try {
         await ethereum.request({
           method: "wallet_switchEthereumChain",
@@ -454,7 +521,9 @@ export default function TwConnectButton({ className, style }: Props) {
       }
       // Update local info after switching
       await refreshWalletInfo(address ?? undefined);
-      toast.success("Network switched", { description: nameByChain[targetChainId] ?? String(targetChainId) });
+      toast.success("Network switched", {
+        description: nameByChain[targetChainId] ?? String(targetChainId),
+      });
     } catch (e: any) {
       const msg = e?.message || String(e) || "Switch network error";
       toast.error("Switch network error", { description: msg });
@@ -486,8 +555,24 @@ export default function TwConnectButton({ className, style }: Props) {
     } catch {}
   };
 
+  // Detect MetaMask availability among injected providers
+  const metamaskAvailable = useMemo(() => {
+    try {
+      return providers.some(
+        (p) =>
+          p.id === "metamask" &&
+          typeof (p as any)?.provider?.request === "function"
+      );
+    } catch {
+      return false;
+    }
+  }, [providers]);
+
   return (
-    <div style={style} className={connected ? "flex items-center gap-2" : undefined}>
+    <div
+      style={style}
+      className={connected ? "flex items-center gap-2" : undefined}
+    >
       {connected && address ? (
         <>
           {/* Wallet dropdown */}
@@ -495,23 +580,48 @@ export default function TwConnectButton({ className, style }: Props) {
             <DropdownMenu.Trigger asChild>
               <button className="flex items-center gap-2 px-3 py-1 rounded-md bg-[#fff1] hover:bg-[#fff2] font-mono text-sm border border-[#fff3] outline-none focus:outline-none">
                 {selectedProviderId === "metamask" ? (
-                  <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
+                  <img
+                    src="/metamask-icon.webp"
+                    alt="MetaMask"
+                    className="w-4 h-4"
+                  />
                 ) : (
-                  <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
+                  <img
+                    src="/metamask-icon.webp"
+                    alt="MetaMask"
+                    className="w-4 h-4"
+                  />
                 )}
                 {shortAddr}
               </button>
             </DropdownMenu.Trigger>
-            <DropdownMenu.Content side="bottom" align="start" className="min-w-[220px] rounded-md border border-[#fff2] bg-black/70 backdrop-blur p-2 shadow-xl outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0">
+            <DropdownMenu.Content
+              side="bottom"
+              align="start"
+              className="min-w-[220px] rounded-md border border-[#fff2] bg-black/70 backdrop-blur p-2 shadow-xl outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0"
+            >
               <div className="px-2 py-1 text-xs text-foreground/70">Wallet</div>
               <DropdownMenu.Separator className="my-1 h-px bg-[#fff1]" />
-              <DropdownMenu.Item className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none" disabled>
-                Provider: {providers.find((p) => p.id === selectedProviderId)?.name ?? "Unknown"}
+              <DropdownMenu.Item
+                className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none"
+                disabled
+              >
+                Provider:{" "}
+                {providers.find((p) => p.id === selectedProviderId)?.name ??
+                  "Unknown"}
               </DropdownMenu.Item>
-              <DropdownMenu.Item className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none" disabled>
-                Network: {chainName ?? "Unknown"} {chainId ? `(#${chainId})` : ""}
+              <DropdownMenu.Item
+                className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none"
+                disabled
+              >
+                Network:{" "}
+                {chainName ?? (chainId ? `Chain #${chainId}` : "Network")}{" "}
+                {chainId ? `(#${chainId})` : ""}
               </DropdownMenu.Item>
-              <DropdownMenu.Item className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none" disabled>
+              <DropdownMenu.Item
+                className="px-2 py-1 rounded-md text-sm text-foreground/90 cursor-default outline-none focus:outline-none focus-visible:outline-none"
+                disabled
+              >
                 Balance: {infoLoading ? "…" : balance ?? "—"} {nativeSymbol}
               </DropdownMenu.Item>
               <DropdownMenu.Separator className="my-1 h-px bg-[#fff1]" />
@@ -521,7 +631,10 @@ export default function TwConnectButton({ className, style }: Props) {
                   <DropdownMenu.SubTrigger className="px-2 py-1 rounded-md text-sm text-foreground/90 hover:bg-[#fff1] cursor-pointer outline-none focus:outline-none focus-visible:outline-none">
                     Switch provider…
                   </DropdownMenu.SubTrigger>
-                  <DropdownMenu.SubContent sideOffset={4} className="min-w-[220px] rounded-md border border-[#fff2] bg-black/70 backdrop-blur p-2 shadow-xl">
+                  <DropdownMenu.SubContent
+                    sideOffset={4}
+                    className="min-w-[220px] rounded-md border border-[#fff2] bg-black/70 backdrop-blur p-2 shadow-xl"
+                  >
                     {providers.map((p) => (
                       <DropdownMenu.Item
                         key={p.id}
@@ -555,37 +668,18 @@ export default function TwConnectButton({ className, style }: Props) {
               >
                 Disconnect
               </DropdownMenu.Item>
-            </DropdownMenu.Content>
+          </DropdownMenu.Content>
           </DropdownMenu.Root>
 
-          {/* Network switcher next to wallet */}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button className="px-3 py-1 rounded-md bg-[#fff1] hover:bg-[#fff2] font-mono text-sm border border-[#fff3] outline-none focus:outline-none">
-                {chainName ?? "Network"}
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content side="bottom" align="start" className="min-w-[240px] rounded-md border border-[#fff2] bg-black/70 backdrop-blur p-2 shadow-xl outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0">
-              <div className="px-2 py-1 text-xs text-foreground/70">Switch network</div>
-              <DropdownMenu.Separator className="my-1 h-px bg-[#fff1]" />
-              {Object.keys(chainParams)
-                .map((k) => Number(k))
-                .map((cid) => (
-                  <DropdownMenu.Item
-                    key={cid}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      if (cid !== chainId) switchNetwork(cid);
-                    }}
-                    className="px-2 py-1 rounded-md text-sm text-foreground/90 hover:bg-[#fff1] cursor-pointer outline-none focus:outline-none focus-visible:outline-none"
-                  >
-                    {nameByChain[cid] ?? cid} {cid === chainId ? "✓" : ""}
-                  </DropdownMenu.Item>
-                ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
+          {/* Passive network badge reflecting MetaMask’s active network */}
+          {/* <span
+            aria-label="Active Network"
+            className="px-2 py-[6px] border border-[#fff3] rounded-md bg-[#fff1] font-mono text-xs text-foreground/80"
+          >
+            {chainName ?? (chainId ? `Chain #${chainId}` : "Network")} {chainId ? `(#${chainId})` : ""}
+          </span> */}
         </>
-      ) : (
+      ) : metamaskAvailable ? (
         <button
           aria-label="Connect Wallet"
           className={
@@ -595,13 +689,23 @@ export default function TwConnectButton({ className, style }: Props) {
           onClick={handleConnect}
           disabled={loading}
         >
-          {selectedProviderId === "metamask" ? (
-            <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
-          ) : (
-            <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
-          )}
+          <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
           {loading ? "Connecting..." : "Connect Wallet"}
         </button>
+      ) : (
+        <div
+          aria-label="MetaMask required"
+          className={
+            className ??
+            "px-3 py-[6px] border cursor-pointer border-[#fff9] flex gap-2 items-center rounded-md bg-[#fff1] font-mono text-sm text-foreground/80"
+          }
+          onClick={() =>
+            toast.error("MetaMask wallet not found. Please install MetaMask.")
+          }
+        >
+          <img src="/metamask-icon.webp" alt="MetaMask" className="w-4 h-4" />
+          Connect Wallet
+        </div>
       )}
     </div>
   );
