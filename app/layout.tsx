@@ -16,6 +16,8 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL;
+
 export const metadata: Metadata = {
   title: {
     default: "Third Codes",
@@ -33,7 +35,7 @@ export const metadata: Metadata = {
     "MetaMask",
     "Third Codes",
   ],
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  ...(SITE_URL ? { metadataBase: new URL(SITE_URL) } : {}),
   openGraph: {
     type: "website",
     url: "/",
