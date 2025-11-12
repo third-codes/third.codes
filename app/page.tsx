@@ -26,6 +26,10 @@ export default function Home() {
   const [selectedSolVersion, setSelectedSolVersion] = useState("0.8.20");
   const [solidityVersions, setSolidityVersions] = useState<string[]>([]);
 
+  // Fresh init prompt used by Build Now! and Initialize buttons
+  const initFreshPrompt =
+    "Initialize a fresh Solidity setup with two minimal contracts. Create exactly two .sol files with PascalCase names. Each file must include // SPDX-License-Identifier: MIT, pragma solidity ^0.8.20;, a top multi-line comment with purpose, next steps, and links to `https://docs.soliditylang.org/`  and `http://third.codes/academy,`  and an empty contract <Name> {}. Do not add functions, variables, events, imports, inheritance, or modifiers.";
+
   const smartContractTemplates = [
     {
       title: "ERC20 Token",
@@ -96,10 +100,59 @@ export default function Home() {
         ? localStorage.getItem("walletAddress") || ""
         : "";
     if (!addr) {
-      toast.error("Please connect MetaMask first");
+      toast.warning("Please connect your wallet first", {
+        description: "Connect MetaMask and try again.",
+      });
       return;
     }
     router.push("/sol");
+  };
+
+  // Deploy helper: checks wallet, initializes a contract, fires AI, then navigates
+  const deployWithPrompt = async (prompt: string) => {
+    const addr =
+      typeof window !== "undefined"
+        ? localStorage.getItem("walletAddress") || ""
+        : "";
+    if (!addr) {
+      toast.warning("Please connect your wallet first", {
+        description: "Connect MetaMask and try again.",
+      });
+      return;
+    }
+    try {
+      const initRes = await fetch("/api/contract/init", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-wallet-address": addr,
+        },
+        body: JSON.stringify({ address: addr, question: prompt }),
+      });
+      const initData = await initRes.json().catch(() => ({} as any));
+      if (!initRes.ok || !initData?.contractId) {
+        toast.error("Initialization failed", {
+          description: String(initData?.error || "Could not start session"),
+        });
+        return;
+      }
+      const cid = String(initData.contractId);
+      // Navigate to Solidity viewer first
+      router.push(`/sol/${cid}`);
+      // Fire AI build in background
+      try {
+        fetch("/api/ai", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-wallet-address": addr,
+          },
+          body: JSON.stringify({ question: prompt, address: addr, contractId: cid }),
+        }).catch(() => {});
+      } catch {}
+    } catch (e: any) {
+      toast.error("Network error", { description: String(e?.message || e || "") });
+    }
   };
   return (
     <>
@@ -192,7 +245,7 @@ export default function Home() {
                   Download
                 </button>
                 <button
-                  onClick={handleGoToSol}
+                  onClick={() => deployWithPrompt(initFreshPrompt)}
                   className="bg-white flex items-center justify-center hover:bg-[#fff9] cursor-pointer text-black px-3 py-[6px] font-mono text-xs"
                 >
                   <GoCommandPalette className="inline-block w-[14px] h-[14px] mr-2" />
@@ -399,7 +452,10 @@ export default function Home() {
               Connect your wallet and deploy your smart contract to the
               blockchain with a single click.
             </p>
-            <button className="bg-white hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-4 text-black rounded-full text-sm">
+            <button
+              className="bg-white hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-4 text-black rounded-full text-sm"
+              onClick={() => deployWithPrompt(initFreshPrompt)}
+            >
               Initialize a new contract
             </button>
           </div>
@@ -419,7 +475,10 @@ export default function Home() {
                 <p className="text-foreground/60 text-[12px] mt-2">
                   {item.prompt}
                 </p>
-                <button className="text-[12px] mb-2 flex gap-1 items-center hover:opacity-80 cursor-pointer bg-emerald-400 text-black mt-3 px-3 py-[3px] rounded-full">
+                <button
+                  className="text-[12px] mb-2 flex gap-1 items-center hover:opacity-80 cursor-pointer bg-emerald-400 text-black mt-3 px-3 py-[3px] rounded-full"
+                  onClick={() => deployWithPrompt(item.prompt)}
+                >
                   Deploy <GoArrowUpRight />
                 </button>
               </div>
@@ -498,7 +557,10 @@ export default function Home() {
           We’ll generate an empty smart contract structure for you, ready to
           build <br /> and launch with AI instantly.
         </p>
-        <button className="bg-white font-mono mb-16 hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-8 text-black rounded-full text-sm">
+        <button
+          className="bg-white font-mono mb-16 hover:opacity-80 cursor-pointer py-2 mx-auto mt-5 block px-8 text-black rounded-full text-sm"
+          onClick={() => deployWithPrompt(initFreshPrompt)}
+        >
           Build Now!
         </button>
       </div>

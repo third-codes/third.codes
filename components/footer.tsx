@@ -103,7 +103,7 @@ export const Footer = () => {
             <ul className="space-y-2">
               <li>
                 <Link
-                  href="#enterprise"
+                  href="/enterprise"
                   className="text-foreground/60 hover:text-foreground/100 font-mono text-xs"
                 >
                   Enterprise
@@ -111,7 +111,7 @@ export const Footer = () => {
               </li>
               <li>
                 <Link
-                  href="#pricing"
+                  href="/pricing"
                   className="text-foreground/60 hover:text-foreground/100 font-mono text-xs"
                 >
                   Pricing

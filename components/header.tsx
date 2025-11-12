@@ -30,17 +30,15 @@ export const Header = () => {
           </p>
         </Link>
         <nav className="flex max-lg:hidden absolute left-1/2 -translate-x-1/2 items-center justify-center gap-x-10">
-          {["Enterprise", "Pricing", "FAQ"].map(
-            (item) => (
-              <Link
-                className=" inline-block text-sm font-mono text-foreground/60 hover:text-foreground/100 duration-150 transition-colors ease-out outline-none focus:outline-none"
-                href={`#${item.toLowerCase()}`}
-                key={item}
-              >
-                {item}
-              </Link>
-            )
-          )}
+          {["Enterprise", "Pricing", "FAQ"].map((item) => (
+            <Link
+              className=" inline-block text-sm font-mono text-foreground/60 hover:text-foreground/100 duration-150 transition-colors ease-out outline-none focus:outline-none"
+              href={`/${item.toLowerCase()}`}
+              key={item}
+            >
+              {item}
+            </Link>
+          ))}
           <a
             className=" inline-block text-sm font-mono text-foreground/60 hover:text-foreground/100 duration-150 transition-colors ease-out outline-none focus:outline-none"
             href="mailto:feedback@third.codes"
