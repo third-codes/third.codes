@@ -159,7 +159,7 @@ export default function Home() {
       <Hero />
       <Leva hidden />
       <div>
-        <div className="mt-8 max-w-[1150px] mx-auto mb-16">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-12 px-4 sm:px-6">
           <h4 className="text-center text-lg font-mono text-foreground/40 mb-8">
             <span className="">Trusted</span> by the best teams
           </h4>
@@ -188,9 +188,9 @@ export default function Home() {
             ))}
           </Marquee>
         </div>
-        <div className="mt-8 max-w-[1150px] mx-auto mb-16 border border-[#fff2] min-h-[900px]">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-16 border border-[#fff2] min-h-[600px] md:min-h-[900px] px-3 sm:px-4">
           <div className="border-b border-[#fff2]">
-            <div className="flex justify-between">
+            <div className="flex justify-between flex-wrap gap-2">
               <div className="flex">
                 <button
                   onClick={handleGoToSol}

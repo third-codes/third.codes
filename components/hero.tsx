@@ -291,7 +291,7 @@ export function Hero() {
 
   // No history and no data fetching needed here per requirements
   return (
-    <div className="flex flex-col h-svh justify-between relative">
+    <div className="flex flex-col h-svh justify-between relative px-5 sm:px-8 pt-6 sm:pt-8">
       {allowGL && <LazyGL hovering={hovering} />}
 
       <div className="pb-16 mt-auto text-center relative">
@@ -322,17 +322,17 @@ export function Hero() {
           Through perpetual investment strategies that outperform the market
         </p> */}
 
-        <h1 className="text-4xl font-sentient">
+        <h1 className="font-sentient text-3xl sm:text-4xl md:text-5xl">
           What do you want to deploy on{" "}
           <span className=" text-emerald-400">Web3</span>?
         </h1>
-        <p className="font-mono text-sm sm:text-base text-foreground/60 text-balance mt-3 mx-auto">
+        <p className="font-mono text-xs sm:text-sm md:text-base text-foreground/60 text-balance mt-3 mx-auto max-w-[900px] px-2">
           Build and launch smart contracts with AI. Low-code, high impact.{" "}
         </p>
-        {/* Text editor: controlled, fixed size, no outline, no resize */}
-        <div className="max-w-[900px] mx-auto relative">
+        {/* Text editor: controlled, no outline, responsive height */}
+        <div className="max-w-[900px] mx-auto relative w-full px-2">
           <textarea
-            className="w-full  font-mono max-w-[900px] bg-[#18181888] h-32 backdrop-blur-lg p-4 mt-4 border border-foreground/20 rounded-xl resize-none outline-none focus:outline-none focus:ring-0 focus:border-foreground/20 focus-visible:outline-none disabled:bg-[#18181855] disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full font-mono max-w-[900px] bg-[#18181888] h-28 sm:h-32 md:h-40 backdrop-blur-lg p-4 mt-4 border border-foreground/20 rounded-xl resize-none outline-none focus:outline-none focus:ring-0 focus:border-foreground/20 focus-visible:outline-none disabled:bg-[#18181855] disabled:opacity-70 disabled:cursor-not-allowed"
             spellCheck={false}
             data-gramm="false"
             data-gramm_editor="false"
@@ -369,7 +369,7 @@ export function Hero() {
             </div>
           )} */}
 
-          <button className="bg-[#ffffff0b] text-[#fff7]  font-mono text-xs  absolute left-4 bottom-5 backdrop-blur-sm py-1 px-3  rounded-full">
+          <button className="bg-[#ffffff0b] text-[#fff7] font-mono text-xs absolute left-4 bottom-5 backdrop-blur-sm py-1 px-3 rounded-full">
             Auto Mode
           </button>
 
@@ -386,7 +386,7 @@ export function Hero() {
           />
         </div>
         {/* Suggestions below the text area */}
-        <div className="max-w-[900px] justify-center mx-auto mt-1 flex flex-wrap items-center gap-2">
+        <div className="max-w-[900px] justify-center mx-auto mt-1 flex flex-wrap items-center gap-2 px-2">
           <p className="text-xs text-gray-400">Suggestions:</p>
 
           <button

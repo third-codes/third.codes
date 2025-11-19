@@ -55,7 +55,7 @@ export const Footer = () => {
   ];
   return (
     <footer className="border-t mt-[100px] border-[#fff2] bg-black">
-      <div className="mx-auto w-[1100px] py-10 md:py-14">
+      <div className="mx-auto w-full max-w-[1100px] px-5 sm:px-8 py-10 md:py-14">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="mr-10">
             <img src="./thirdcodes.png" className="w-12 mt-6" />
@@ -67,7 +67,7 @@ export const Footer = () => {
               <p
                 style={{
                   backgroundImage:
-                    "linear-gradient(-225deg, #FF057C 0%, #8D0B93 50%, #321575 100%);",
+                    "linear-gradient(-225deg, #FF057C 0%, #8D0B93 50%, #321575 100%)",
                 }}
                 className=" ml-1 font-mono text-[10px] text-white px-1 rounded-[2px]"
               >
@@ -242,7 +242,7 @@ export const Footer = () => {
             </div>
           </div>
         </div>
-        <div className="mt-8 pt-6 border-t border-[#fff1] flex items-center justify-between">
+        <div className="mt-8 pt-6 border-t border-[#fff1] flex items-center justify-between flex-wrap gap-3">
           <span className="text-foreground/50 font-mono text-[11px]">
             © {year} third.codes — All rights reserved.
           </span>
