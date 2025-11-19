@@ -295,6 +295,24 @@ export function Hero() {
       {allowGL && <LazyGL hovering={hovering} />}
 
       <div className="pb-16 mt-auto text-center relative">
+        {/* Product Hunt badge above the main slogan (dark theme) */}
+        <div className="flex justify-center mb-14">
+          <a
+            href="https://www.producthunt.com/products/third-codes?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-third-codes"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Third Codes on Product Hunt"
+          >
+            <img
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1039031&theme=dark&t=1763560836430"
+              alt="Third Codes - Create and deploy smart contracts instantly with AI. | Product Hunt"
+              style={{ width: 250, height: 54 }}
+              width={250}
+              height={54}
+            />
+          </a>
+        </div>
+
         {/* <Pill className="mb-6">BETA RELEASE</Pill>
         <h1 className="text-5xl sm:text-6xl md:text-7xl font-sentient">
           Unlock your <br />
