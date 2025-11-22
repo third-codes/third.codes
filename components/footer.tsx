@@ -140,6 +140,16 @@ export const Footer = () => {
                   GitHub
                 </a>
               </li>
+              <li>
+                <a
+                  href="http://linkedin.com/company/thirdcodes/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground/60 hover:text-foreground/100 font-mono text-xs"
+                >
+                  LinkedIn
+                </a>
+              </li>
             </ul>
           </div>
           {/* Swap: Contact column moved here */}

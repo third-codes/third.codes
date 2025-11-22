@@ -16,6 +16,7 @@ import {
   GoCommandPalette,
   GoArrowUpRight,
 } from "react-icons/go";
+import { FaXTwitter } from "react-icons/fa6";
 // Icons are now served as static SVGs from public/icons/networks
 
 export default function Home() {
@@ -147,11 +148,17 @@ export default function Home() {
             "Content-Type": "application/json",
             "x-wallet-address": addr,
           },
-          body: JSON.stringify({ question: prompt, address: addr, contractId: cid }),
+          body: JSON.stringify({
+            question: prompt,
+            address: addr,
+            contractId: cid,
+          }),
         }).catch(() => {});
       } catch {}
     } catch (e: any) {
-      toast.error("Network error", { description: String(e?.message || e || "") });
+      toast.error("Network error", {
+        description: String(e?.message || e || ""),
+      });
     }
   };
   return (
@@ -159,7 +166,7 @@ export default function Home() {
       <Hero />
       <Leva hidden />
       <div>
-        <div className="mt-8 max-w-[1150px] mx-auto mb-12 px-4 sm:px-6">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-12  sm:px-6">
           <h4 className="text-center text-lg font-mono text-foreground/40 mb-8">
             <span className="">Trusted</span> by the best teams
           </h4>
@@ -188,7 +195,7 @@ export default function Home() {
             ))}
           </Marquee>
         </div>
-        <div className="mt-8 max-w-[1150px] mx-auto mb-16 border border-[#fff2] min-h-[600px] md:min-h-[900px] px-3 sm:px-4">
+        <div className="mt-8 max-w-[1150px] mx-auto mb-16 border border-[#fff2] min-h-[600px] md:min-h-[900px] px-4 md:px-0">
           <div className="border-b border-[#fff2]">
             <div className="flex justify-between flex-wrap gap-2">
               <div className="flex">
@@ -420,8 +427,8 @@ export default function Home() {
           <h3 className="text-white text-center border-b pb-8 border-[#fff2] font-mono text-2xl mt-8">
             AI-Codes: From Prompt to Protocol
           </h3>
-          <div className="flex">
-            <div className="border-r p-12 font-mono w-[50%] border-[#fff2]">
+          <div className="md:flex">
+            <div className="border-r p-12 font-mono md:w-[50%] border-[#fff2]">
               <span className="text-xs text-emerald-400 border border-emerald-400 px-3 py-[3px] rounded-full">
                 Create
               </span>
@@ -433,7 +440,7 @@ export default function Home() {
               <img src={"/ai-codes-min.png"} className="mt-7" />
             </div>
 
-            <div className="p-12 font-mono w-[50%]">
+            <div className="p-12 font-mono md:w-[50%]">
               <span className="text-xs text-emerald-400 border border-emerald-400  px-3 py-[3px] rounded-full">
                 Fix/Update
               </span>
@@ -459,13 +466,13 @@ export default function Home() {
               Initialize a new contract
             </button>
           </div>
-          <div className="grid border-t border-[#fff2] grid-cols-3">
+          <div className="md:grid border-t border-[#fff2] grid-cols-3">
             {smartContractTemplates.map((item, idx) => (
               <div
                 key={item.title}
                 className={`p-4 font-mono border-[#fff2] ${
-                  idx % 3 !== 2 ? "border-r" : ""
-                } ${idx < 3 ? "border-b" : ""}`}
+                  idx % 3 !== 2 ? "md:border-r" : ""
+                } ${idx < 3 ? "md:border-b" : ""}`}
               >
                 <p className="text-[32px]   font-mono text-center my-24 items-center justify-between">
                   {item.title}
@@ -563,6 +570,118 @@ export default function Home() {
         >
           Build Now!
         </button>
+        {/* Tweets Marquee: Social proof below Ready to start section */}
+        <div className="mt-8 mb-16 w-full">
+          {/* <h4 className="text-center text-lg font-mono text-foreground/40 mb-8">
+            What people say about us
+          </h4> */}
+          <Marquee
+            speed={40}
+            pauseOnHover
+            className=""
+            gradient
+            gradientColor="#000000"
+            gradientWidth={80}
+          >
+            {[
+              {
+                name: "Emily Johnson",
+                role: "Product Manager, Finch Labs",
+                text: "third.codes helped us ship a governance MVP in an afternoon. Clean output, clear guidance, and zero Solidity headaches. Seriously, it's a gamechanger for fast prototyping!",
+                hashtags: [
+                  "#Blockchain",
+                  "#Prototyping",
+                  "#ThirdCodes",
+                  "#Tools",
+                  "#Trend",
+                  "#WEb3",
+                ],
+              },
+              {
+                name: "Michael Carter",
+                role: "CTO, BrightChain",
+                text: "Spun up an ERC20 with mint/burn in minutes. Went from idea to test-ready token in the same day. The AI workflow feels like having a senior engineer on standby.",
+                hashtags: ["@thirdcodes"],
+              },
+              {
+                name: "Lily Fox",
+                role: "Founder, NovaDAO",
+                text: "From concept to live DAO contract without deep blockchain expertise. third.codes let us experiment fearlessly and ship fast—our community loved it!",
+                hashtags: ["www.third.codes", "@thirdcodes"],
+              },
+              {
+                name: "Matthew Adams",
+                role: "Blockchain Engineer, SkyNet",
+                text: "Generated code was readable, maintainable, and production-ready. Integrates perfectly with our CI/CD pipelines. Feels like it was made for engineers.",
+                hashtags: ["#web3", "#evm", "@polygon", "#smartContracts"],
+              },
+              {
+                name: "Noah Reed",
+                role: "Head of Ops, MetaForge",
+                text: "If your team isn’t blockchain-native, this is the tool you need. Iterate, validate, and deploy smart contracts effortlessly. It just works.",
+                hashtags: ["#NoCode", "#SmartContracts"],
+              },
+              {
+                name: "Ava Mitchell",
+                role: "Researcher, DeFi Lab",
+                text: "Rapid DeFi prototyping became painless. Tested multiple models, shipped contracts fast, and learned without headaches.",
+                hashtags: ["https://third.codes"],
+              },
+              {
+                name: "Peter Collins",
+                role: "Lead Dev, OrbitX",
+                text: "Token-based voting done in no time. AI helpers were practical, guiding us through without micromanaging. Smooth experience.",
+                hashtags: [],
+              },
+              {
+                name: "Mary Smith",
+                role: "QA Lead, Quartz",
+                text: "Common pitfalls flagged automatically, fixes suggested instantly. Saved days of QA cycles. Wish all tools were this smart.",
+                hashtags: [
+                  "#BlockchainTools",
+                  "#thirdcodes",
+                  "#web3",
+                  "#noCode",
+                ],
+              },
+              {
+                name: "Cameron Hayes",
+                role: "DevRel, Web3Hub",
+                text: "For workshops and demos, third.codes lets us spin up real contracts in minutes. Audience actually plays with live code—mind-blowing!",
+                hashtags: ["#Web3", ""],
+              },
+              {
+                name: "Ryan Keller",
+                role: "PM, ChainWave",
+                text: "Instant deploy with AI cut our timeline drastically. From prototyping to testing in record time. Highly recommend anyone curious about smart contracts to try it.",
+                hashtags: [],
+              },
+            ].map((t, idx) => (
+              <div
+                key={idx}
+                className="mx-4 w-[360px] sm:w-[440px] bg-[#ffffff0b] border border-[#fff2] rounded-md p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-mono text-sm text-white">{t.name}</div>
+                    <div className="font-mono text-[11px] text-foreground/50">
+                      {t.role}
+                    </div>
+                  </div>
+                  <FaXTwitter className="w-6 h-6 text-white" />
+                </div>
+                <p className="mt-2 font-mono text-sm text-foreground/80">
+                  {t.text}
+                </p>
+                <div className="flex flex-wrap gap-2 font-mono text-[11px] text-blue-400 mt-2">
+                  {t.hashtags.map((item) => (
+                    <p>{item}</p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </Marquee>
+        </div>
       </div>
     </>
   );
