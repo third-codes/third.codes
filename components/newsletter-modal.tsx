@@ -72,32 +72,32 @@ export default function NewsletterModal() {
     <Dialog.Root open={open} onOpenChange={(v) => (v ? setOpen(true) : onClose())}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/70 z-[1000]" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-[420px] rounded-xl border border-foreground/20 bg-[#0b0b0b] p-4 shadow-xl z-[1001]">
+        <Dialog.Content onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()} className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-[600px] rounded-2xl border border-foreground/20 bg-[#0b0b0b] p-6 shadow-2xl z-[1001]">
           <div className="flex items-center justify-between">
-            <Dialog.Title className="font-mono text-sm text-foreground">Subscribe to Newsletter</Dialog.Title>
+            <Dialog.Title className="font-mono text-lg text-foreground">Subscribe to Newsletter</Dialog.Title>
             <Dialog.Close asChild>
-              <button aria-label="Close" className="text-foreground/60 hover:text-foreground/100 font-mono text-xs" onClick={onClose}>×</button>
+              <button aria-label="Close" className="text-foreground/60 hover:text-foreground/100 font-mono outline-none text-2xl" onClick={onClose}>×</button>
             </Dialog.Close>
           </div>
-          <div className="mt-2 font-mono text-[11px] text-foreground/70">Get updates on new features and templates.</div>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 font-mono text-[13px] text-foreground/80">Get updates on new features and templates.</div>
+          <div className="mt-4 flex gap-3">
             <input
               type="email"
               placeholder="Your email"
-              className="flex-1 outline-none bg-[#ffffff05] border border-foreground/20 rounded-md p-2 font-mono text-xs text-white"
+              className="flex-1 outline-none bg-[#ffffff08] border border-foreground/25 rounded-md p-3 font-mono text-sm text-white"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
             <button
-              className="px-3 py-2 rounded-md bg-emerald-400 hover:bg-emerald-500 text-black font-mono text-xs disabled:opacity-60"
+              className="px-4 py-3 rounded-md bg-emerald-400 hover:bg-emerald-500 text-black font-mono text-sm disabled:opacity-60"
               onClick={onSubmit}
               disabled={loading}
             >
               {loading ? "…" : "Subscribe"}
             </button>
           </div>
-          <div className="mt-2 font-mono text-[10px] text-foreground/50">We respect your privacy.</div>
+          <div className="mt-3 font-mono text-[12px] text-foreground/60">We respect your privacy.</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
