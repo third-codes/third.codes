@@ -7,6 +7,7 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { Toaster } from "sonner";
 import ChatFloat from "@/components/chat-float";
+import NewsletterModal from "@/components/newsletter-modal";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -99,6 +100,7 @@ export default function RootLayout({
         {children}
         <Footer />
         <ChatFloat />
+        <NewsletterModal />
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>
     </html>
