@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { connectMongo } from "@/lib/mongoose";
+import { Newsletter } from "@/models/Newsletter";
 
 export async function POST(req: Request) {
   try {
@@ -13,26 +13,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Invalid email" }, { status: 400 });
     }
 
-    const dir = path.join(process.cwd(), "workspace");
-    const file = path.join(dir, "newsletter.json");
-
-    // Ensure directory exists
-    await fs.mkdir(dir, { recursive: true });
-
-    let list: Array<{ email: string; ts: number }> = [];
+    let sub: string | undefined = undefined;
     try {
-      const raw = await fs.readFile(file, "utf8");
-      list = JSON.parse(raw);
-      if (!Array.isArray(list)) list = [];
-    } catch {
-      list = [];
-    }
-
-    // Avoid duplicates
-    const exists = list.some((x) => x.email === email);
-    if (!exists) {
-      list.push({ email, ts: Date.now() });
-      await fs.writeFile(file, JSON.stringify(list, null, 2), "utf8");
+      const { getSession } = await import("@auth0/nextjs-auth0");
+      const session = await getSession();
+      sub = session?.user?.sub;
+    } catch {}
+    await connectMongo();
+    const existing = await Newsletter.findOne({ email }).lean();
+    if (!existing) {
+      await Newsletter.create({ email, userSub: sub });
     }
 
     return NextResponse.json({ ok: true });
@@ -43,12 +33,10 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  // Optional: expose count for debugging
   try {
-    const file = path.join(process.cwd(), "workspace", "newsletter.json");
-    const raw = await fs.readFile(file, "utf8");
-    const list = JSON.parse(raw);
-    return NextResponse.json({ ok: true, count: Array.isArray(list) ? list.length : 0 });
+    await connectMongo();
+    const count = await Newsletter.countDocuments({});
+    return NextResponse.json({ ok: true, count });
   } catch {
     return NextResponse.json({ ok: true, count: 0 });
   }

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 
 export const Footer = () => {
   const pathname = usePathname();
@@ -210,7 +211,8 @@ export const Footer = () => {
                     const data = await res.json().catch(() => ({}));
                     if (res.ok && data?.ok) {
                       setNewsletterStatus("success");
-                      setNewsletterMsg("ثبت شد! ما به شما ایمیل می‌زنیم.");
+                      setNewsletterMsg("Subscribed successfully.");
+                      toast.success("Subscribed successfully");
                       setNewsletterEmail("");
                     } else {
                       setNewsletterStatus("error");
