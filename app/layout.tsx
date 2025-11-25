@@ -8,6 +8,7 @@ import { Footer } from "@/components/footer";
 import { Toaster } from "sonner";
 import ChatFloat from "@/components/chat-float";
 import NewsletterModal from "@/components/newsletter-modal";
+import Script from "next/script";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
@@ -96,6 +97,12 @@ export default function RootLayout({
         className={`${jetbrainsMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        <Script
+          src="https://cloud.umami.is/script.js"
+          strategy="afterInteractive"
+          defer
+          data-website-id="9769b2f0-45f3-4771-8e0c-b128570339ac"
+        />
         <Header />
         {children}
         <Footer />
